@@ -1,0 +1,36 @@
+@import "tailwindcss";
+@plugin '@tailwindcss/typography';
+
+@theme {
+  /* Colors */
+  --color-primary: oklch(0 0 0);         /* Pure black */
+  --color-secondary: oklch(0.25 0 0);    /* Dark gray */
+  --color-background-light: oklch(1 0 0); /* Pure white */
+  --color-background-dark: oklch(0 0 0);  /* Pure black */
+
+  /* Typography */
+  --font-sans: ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", system-ui, sans-serif;
+  
+  /* Spacing */
+  --spacing: 0.25rem;
+
+  /* Animation */
+  --ease-snappy: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@layer base {
+  :root {
+    color-scheme: light dark;
+  }
+}
+
+@layer utilities {
+  .bg-background {
+    @media (prefers-color-scheme: dark) {
+      background-color: var(--color-background-dark);
+    }
+    @media (prefers-color-scheme: light) {
+      background-color: var(--color-background-light);
+    }
+  }
+}
