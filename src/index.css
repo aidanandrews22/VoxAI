@@ -3,14 +3,16 @@
 
 @theme {
   /* Colors */
-  --color-primary: oklch(0 0 0);         /* Pure black */
-  --color-secondary: oklch(0.25 0 0);    /* Dark gray */
+  --color-primary: oklch(0 0 0); /* Pure black */
+  --color-secondary: oklch(0.25 0 0); /* Dark gray */
   --color-background-light: oklch(1 0 0); /* Pure white */
-  --color-background-dark: oklch(0 0 0);  /* Pure black */
+  --color-background-dark: oklch(0 0 0); /* Pure black */
 
   /* Typography */
-  --font-sans: ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text", system-ui, sans-serif;
-  
+  --font-sans:
+    ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro", "SF Pro Text",
+    system-ui, sans-serif;
+
   /* Spacing */
   --spacing: 0.25rem;
 

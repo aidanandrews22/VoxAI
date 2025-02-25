@@ -4,16 +4,16 @@ import { SignUp } from "@clerk/clerk-react";
 export default function SignUpPage() {
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <SignUp 
+      <SignUp
         appearance={{
-            layout: {
-                // logoImageUrl: IllinoisLogo,
-                showOptionalFields: false,
-                // logoLinkUrl: "/logo",
-            }
+          layout: {
+            // logoImageUrl: IllinoisLogo,
+            showOptionalFields: false,
+            // logoLinkUrl: "/logo",
+          },
         }}
         signInUrl="/sign-in"
       />
     </div>
   );
-} 
+}
