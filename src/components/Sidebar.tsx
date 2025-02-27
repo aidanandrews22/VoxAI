@@ -68,6 +68,8 @@ const Sidebar = ({
   const [error, setError] = useState<string | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<{id: string, isParent: boolean} | null>(null);
   const [allFoldersList, setAllFoldersList] = useState<Folder[]>([]);
+  // Add state to track checked files
+  const [checkedFiles, setCheckedFiles] = useState<Set<string>>(new Set());
   
   // Add file input ref for notebook mode
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -124,6 +126,15 @@ const Sidebar = ({
     
     loadData();
   }, [userId]);
+
+  // Initialize all files as checked by default
+  useEffect(() => {
+    if (files.length > 0) {
+      const newCheckedFiles = new Set<string>();
+      files.forEach(file => newCheckedFiles.add(file.id));
+      setCheckedFiles(newCheckedFiles);
+    }
+  }, [files]);
 
   const handleToggleFolder = (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -269,6 +280,20 @@ const Sidebar = ({
 
   const cancelDeleteFolder = () => {
     setFolderToDelete(null);
+  };
+
+  // Toggle file checked state
+  const toggleFileChecked = (fileId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCheckedFiles(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(fileId)) {
+        newSet.delete(fileId);
+      } else {
+        newSet.add(fileId);
+      }
+      return newSet;
+    });
   };
 
   const renderFolderItem = (folder: Folder, depth = 0) => {
@@ -754,11 +779,41 @@ const Sidebar = ({
                       </p>
                     ) : (
                       <ul className="space-y-2">
+                        <div className="flex items-center justify-center mb-2">
+                          <p className="text-gray-500 dark:text-gray-400 text-sm text-center">
+                            Click to toggle files
+                          </p>
+                          <div className="relative ml-1 group">
+                            <svg 
+                              xmlns="http://www.w3.org/2000/svg" 
+                              className="h-4 w-4 text-gray-500 dark:text-gray-400 cursor-help" 
+                              fill="none" 
+                              viewBox="0 0 24 24" 
+                              stroke="currentColor"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div className="absolute top-full right-0 mb-2 w-48 p-2 bg-gray-300 text-gray-500 text-xs rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-opacity z-10">
+                              Toggled files will be included in the model context when responding to your queries.
+                              <div className="absolute top-full right-0 -mt-1 border-4 border-transparent border-t-black dark:border-t-white"></div>
+                            </div>
+                          </div>
+                        </div>
                         {files.map((file) => (
-                          <li key={file.id} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+                          <li 
+                            key={file.id} 
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer"
+                          >
                             <div className="flex justify-between items-start">
-                              <div className="truncate">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                              <div 
+                                className="flex-1 truncate"
+                                onClick={(e) => toggleFileChecked(file.id, e)}
+                              >
+                                <p className={`text-sm font-medium truncate ${
+                                  checkedFiles.has(file.id) 
+                                    ? 'text-gray-900 dark:text-white' 
+                                    : 'text-gray-500 dark:text-gray-400 line-through'
+                                }`}>
                                   {file.file_name}
                                 </p>
                                 <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -767,9 +822,18 @@ const Sidebar = ({
                               </div>
                               <button
                                 onClick={() => handleDeleteFile?.(file.id)}
-                                className="text-red-500 hover:text-red-700 text-xs"
+                                className="text-red-500 hover:text-red-700"
+                                aria-label="Delete file"
                               >
-                                Delete
+                                <svg 
+                                  xmlns="http://www.w3.org/2000/svg" 
+                                  className="h-4 w-4" 
+                                  fill="none" 
+                                  viewBox="0 0 24 24" 
+                                  stroke="currentColor"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                               </button>
                             </div>
                           </li>
