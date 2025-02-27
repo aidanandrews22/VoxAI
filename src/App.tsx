@@ -77,12 +77,12 @@ export default function App() {
 
                       <div className="flex gap-4 justify-center">
                         <SignInButton mode="modal">
-                          <button className="px-6 py-2 rounded-full bg-black text-white dark:bg-white dark:text-black font-medium transition-all duration-300 hover:bg-gray-900 dark:hover:bg-gray-100">
+                          <button className="px-6 py-2 rounded-full bg-black text-white dark:bg-white dark:text-black font-medium transition-all duration-300 hover:bg-gray-900 dark:hover:bg-gray-100 cursor-pointer">
                             Sign In
                           </button>
                         </SignInButton>
                         <SignUpButton mode="modal">
-                          <button className="px-6 py-2 rounded-full border-2 border-black text-black dark:border-white dark:text-white font-medium transition-all duration-300 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black">
+                          <button className="px-6 py-2 rounded-full border-2 border-black text-black dark:border-white dark:text-white font-medium transition-all duration-300 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black cursor-pointer">
                             Sign Up
                           </button>
                         </SignUpButton>
