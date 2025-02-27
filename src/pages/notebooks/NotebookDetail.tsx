@@ -44,6 +44,8 @@ export default function NotebookDetailPage() {
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
+  error;
+
   // Fetch notebook data
   useEffect(() => {
     async function fetchNotebookData() {

@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, GenerativeModel, GenerationConfig } from '@google/generative-ai';
+import { GoogleGenerativeAI, GenerationConfig } from '@google/generative-ai';
 
 // Initialize the Google Generative AI with API key
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;

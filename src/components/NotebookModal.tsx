@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { Notebook, Folder } from '../services/supabase';
+import type { Folder } from '../services/supabase';
 
 interface NotebookModalProps {
   isOpen: boolean;

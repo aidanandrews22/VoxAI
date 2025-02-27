@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { NotebookSchema } from "../types/notebook";
 
 interface CreateNotebookModalProps {
   isOpen: boolean;

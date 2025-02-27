@@ -159,7 +159,8 @@ export async function getNotebooksInFolder(
     }
 
     // Extract the notebook data from the join result
-    const notebooks = data.map(item => item.notebooks);
+    // The notebooks property is actually a single object, not an array
+    const notebooks = data.map(item => item.notebooks) as unknown as Notebook[];
 
     return { success: true, data: notebooks };
   } catch (error) {
@@ -291,7 +292,8 @@ export async function getNotebookFolders(
     }
 
     // Extract the folder data from the join result
-    const folders = data.map(item => item.folders);
+    // The folders property is actually a single object, not an array
+    const folders = data.map(item => item.folders) as unknown as Folder[];
 
     return { success: true, data: folders };
   } catch (error) {
@@ -399,8 +401,10 @@ export async function getNotebooksInFolderRecursive(
     // Extract the notebook data from the join result and remove duplicates
     const notebookMap = new Map<string, Notebook>();
     data.forEach(item => {
-      if (item.notebooks && !notebookMap.has(item.notebooks.id)) {
-        notebookMap.set(item.notebooks.id, item.notebooks);
+      // The notebooks property is actually a single object, not an array
+      const notebook = item.notebooks as unknown as Notebook;
+      if (notebook && !notebookMap.has(notebook.id)) {
+        notebookMap.set(notebook.id, notebook);
       }
     });
 
@@ -415,10 +419,14 @@ export async function getNotebooksInFolderRecursive(
  * Check if a folder is a parent folder
  */
 export async function isParentFolder(folderId: string): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('folders')
-    .select('has_children')
-    .eq('id', folderId)
-    .single();
-  return data?.has_children;
+  try {
+    const { data } = await supabase
+      .from('folders')
+      .select('has_children')
+      .eq('id', folderId)
+      .single();
+    return !!data?.has_children;
+  } catch {
+    return false;
+  }
 }

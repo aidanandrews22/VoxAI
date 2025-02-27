@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   getUserFoldersHierarchy, 
   createFolder, 
@@ -73,7 +73,8 @@ const Sidebar = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const navigate = useNavigate();
-  const location = useLocation();
+
+  unorganizedNotebooks;
 
   useEffect(() => {
     if (!userId) return;

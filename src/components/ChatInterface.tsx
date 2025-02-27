@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { ChatMessage, ChatSession } from '../services/supabase';
 
 interface ChatInterfaceProps {
