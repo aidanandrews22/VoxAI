@@ -2,6 +2,52 @@
 
 ## Physical Project code located [here](https://github.com/aidanandrews22/VoxAI-physical)
 
+## Features
+
+- **Notebook Management**: Create and manage notebooks for organizing your files and conversations
+- **File Upload**: Upload various file types to your notebooks
+- **AI Chat**: Interact with your files using Gemini AI with streaming responses
+- **Authentication**: Secure authentication with Clerk
+
+## AI Integration
+
+VoxAI uses Google's Gemini 1.5 Flash 8B model for AI chat functionality. The integration features:
+
+- Real-time streaming responses
+- Context-aware conversations
+- Efficient processing of various file types
+
+To use the Gemini integration:
+
+1. Get an API key from [Google AI Studio](https://makersuite.google.com/)
+2. Add your API key to the `.env` file as `VITE_GEMINI_API_KEY`
+
+## Environment Setup
+
+Copy the `.env.example` file to `.env` and fill in the required values:
+
+```
+# Supabase
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON=your_supabase_anon_key
+
+# Clerk
+VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+
+# Gemini
+VITE_GEMINI_API_KEY=your_gemini_api_key
+```
+
+## Getting Started
+
+```bash
+# Install dependencies
+pnpm install
+
+# Start development server
+pnpm dev
+```
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
