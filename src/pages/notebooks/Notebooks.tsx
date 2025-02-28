@@ -334,7 +334,7 @@ export default function NotebooksPage() {
       )}
       
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden pt-12">
         {/* <Header /> */}
         <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-4 py-8">

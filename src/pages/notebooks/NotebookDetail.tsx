@@ -9,7 +9,6 @@ import {
   sendChatMessage,
   getChatMessages,
   deleteChatSession,
-  updateChatSessionTitle
 } from '../../services/notebookService';
 import { streamChatWithGemini, formatMessagesForGemini } from '../../services/geminiService';
 import type { Notebook, NotebookFile, ChatSession, ChatMessage } from '../../services/supabase';
@@ -45,6 +44,7 @@ export default function NotebookDetailPage() {
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   error;
+  editedChatTitle;
 
   // Fetch notebook data
   useEffect(() => {
@@ -421,43 +421,6 @@ export default function NotebookDetailPage() {
     setIsEditingChatTitle(true);
   };
 
-  const handleCancelEditTitle = () => {
-    setIsEditingChatTitle(false);
-  };
-
-  const handleSaveChatTitle = async () => {
-    if (!currentChatSession || !editedChatTitle.trim()) {
-      setIsEditingChatTitle(false);
-      return;
-    }
-    
-    try {
-      const result = await updateChatSessionTitle(currentChatSession.id, editedChatTitle.trim());
-      if (result.success && result.data) {
-        // Update the session in the list without triggering a re-render of messages
-        const updatedSession = { ...currentChatSession, title: editedChatTitle.trim() };
-        
-        setChatSessions(prevSessions => 
-          prevSessions.map(session => 
-            session.id === currentChatSession.id 
-              ? updatedSession
-              : session
-          )
-        );
-        
-        // Update the current session
-        setCurrentChatSession(updatedSession);
-      } else {
-        setError('Failed to update chat title');
-      }
-    } catch (err) {
-      console.error('Error updating chat title:', err);
-      setError('An error occurred while updating the chat title');
-    } finally {
-      setIsEditingChatTitle(false);
-    }
-  };
-
   if (isUserLoading || isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -522,34 +485,20 @@ export default function NotebookDetailPage() {
         />
         
         {/* Main Content - Chat */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <div className="flex-1 overflow-y-auto p-4">
-            <div className="max-w-3xl mx-auto">
-              {/* <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">
-                {notebook.title}
-              </h1> */}
-              
-              {/* Chat Interface Component */}
-              <ChatInterface 
-                currentChatSession={currentChatSession}
-                messages={messages}
-                isLoadingMessages={isLoadingMessages}
-                isStreaming={isStreaming}
-                streamingContent={streamingContent}
-                inputMessage={inputMessage}
-                setInputMessage={setInputMessage}
-                handleSendMessage={handleSendMessage}
-                handleCreateSession={handleCreateSession}
-                isEditingChatTitle={isEditingChatTitle}
-                editedChatTitle={editedChatTitle}
-                setEditedChatTitle={setEditedChatTitle}
-                handleSaveChatTitle={handleSaveChatTitle}
-                handleEditChatTitle={handleEditChatTitle}
-                handleCancelEditTitle={handleCancelEditTitle}
-                messagesEndRef={messagesEndRef}
-              />
-            </div>
-          </div>
+        <div className="flex-1 flex flex-col overflow-hidden relative">
+          {/* Chat Interface Component */}
+          <ChatInterface 
+            currentChatSession={currentChatSession}
+            messages={messages}
+            isLoadingMessages={isLoadingMessages}
+            isStreaming={isStreaming}
+            streamingContent={streamingContent}
+            inputMessage={inputMessage}
+            setInputMessage={setInputMessage}
+            handleSendMessage={handleSendMessage}
+            handleCreateSession={handleCreateSession}
+            messagesEndRef={messagesEndRef}
+          />
         </div>
       </div>
     </div>
