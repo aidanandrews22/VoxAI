@@ -36,20 +36,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
     });
   };
 
-  // Auto-resize textarea based on content
-  useEffect(() => {
+  // Auto-resize textarea function
+  const autoResizeTextarea = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
-
-    // Reset height to auto to get the correct scrollHeight
+    
+    // Reset height first
     textarea.style.height = 'auto';
     
-    // Calculate new height (capped at 25vh)
-    const maxHeight = window.innerHeight * 0.25;
-    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
-    
-    // Apply the new height
-    textarea.style.height = `${newHeight}px`;
+    // Set to scrollHeight (capped at max-h-[25vh] through CSS class)
+    textarea.style.height = `${Math.min(textarea.scrollHeight, window.innerHeight * 0.25)}px`;
+  };
+
+  // Initialize textarea height when component mounts
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  }, []);
+
+  // Reset height and then auto-resize when inputMessage changes
+  useEffect(() => {
+    if (textareaRef.current && inputMessage === '') {
+      // Reset to default height when empty
+      textareaRef.current.style.height = 'auto';
+    } else {
+      autoResizeTextarea();
+    }
   }, [inputMessage]);
 
   return (
@@ -204,6 +217,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     className="flex-1 p-4 bg-transparent outline-none text-gray-900 dark:text-white relative z-10 resize-none min-h-[56px] max-h-[25vh] overflow-y-auto"
                     disabled={isStreaming}
                     rows={1}
+                    onInput={autoResizeTextarea}
+                    onFocus={autoResizeTextarea}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();

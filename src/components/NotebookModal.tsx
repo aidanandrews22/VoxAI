@@ -177,7 +177,7 @@ export default function NotebookModal({
               </button>
               <button
                 type="submit"
-                className="px-6 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors cursor-pointer"
+                className="px-6 py-3 bg-black dark:bg-white text-white dark:text-black hover:bg-gray-900 dark:hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
                 disabled={!title.trim() || isSubmitting}
               >
                 {isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Create'}
