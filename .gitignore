@@ -26,7 +26,11 @@ dist-ssr
 *.sw?
 .cursorrules
 .cursorignore
+.cursor/*
+.cursor/
 
 # Environment variables
+.env.local
 .env
 .env.*
+*/.env

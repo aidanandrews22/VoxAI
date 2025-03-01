@@ -993,7 +993,7 @@ const Sidebar = ({
                         : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
                     } cursor-pointer`}
                   >
-                    Files
+                    Knowledge
                   </button>
                   <button
                     onClick={() => setActiveTab?.('chats')}

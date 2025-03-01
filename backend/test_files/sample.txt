@@ -1,0 +1,5 @@
+
+    This is a sample text file for testing the text processor.
+    It contains multiple lines of text.
+    The text processor should extract this text and provide basic metadata.
+    
