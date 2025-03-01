@@ -101,10 +101,10 @@ export default function NotebookModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed bg-black/25 inset-0 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full overflow-hidden">
+    <div className="fixed bg-overlay inset-0 flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-lg shadow-xl max-w-md w-full overflow-hidden">
         <div className="p-6">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">
+          <h2 className="text-2xl font-bold text-adaptive mb-6">
             {isEditing ? 'Edit Notebook' : 'Create New Notebook'}
           </h2>
           
@@ -117,10 +117,10 @@ export default function NotebookModal({
           <form onSubmit={handleSubmit}>
             <div className="mb-6 space-y-4">
               <div className="flex justify-between items-center mb-2">
-                <label htmlFor="title" className="text-gray-700 dark:text-gray-300">
+                <label htmlFor="title" className="text-muted">
                   Notebook name
                 </label>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-muted">
                   {title.length}/{MAX_TITLE_LENGTH}
                 </span>
               </div>
@@ -129,16 +129,16 @@ export default function NotebookModal({
                 id="title"
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, MAX_TITLE_LENGTH))}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border border-adaptive rounded-lg bg-input text-adaptive focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter notebook name"
                 required
                 autoFocus
               />
               <div className="flex justify-between items-center mb-2">
-                <label htmlFor="description" className="text-gray-700 dark:text-gray-300">
+                <label htmlFor="description" className="text-muted">
                   Notebook description
                 </label>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
+                <span className="text-sm text-muted">
                   {description.length}/{MAX_DESCRIPTION_LENGTH}
                 </span>
               </div>
@@ -147,20 +147,20 @@ export default function NotebookModal({
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value.slice(0, MAX_DESCRIPTION_LENGTH))}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 border border-adaptive rounded-lg bg-input text-adaptive focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Enter notebook description"
               />
             </div>
             
             <div className="mb-6">
-              <label htmlFor="folder" className="block text-gray-700 dark:text-gray-300 mb-2">
+              <label htmlFor="folder" className="block text-muted mb-2">
                 Folder
               </label>
               <select
                 id="folder"
                 value={folderId}
                 onChange={(e) => setFolderId(e.target.value)}
-                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                className="w-full px-4 py-3 border border-adaptive rounded-lg bg-input text-adaptive focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
               >
                 <option value="unorganized">Unorganized</option>
                 {renderFolderOptions(folders)}
@@ -171,7 +171,7 @@ export default function NotebookModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-6 py-3 text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors cursor-pointer"
+                className="px-6 py-3 text-muted hover:text-adaptive transition-colors cursor-pointer"
               >
                 Cancel
               </button>

@@ -66,16 +66,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
   }, [inputMessage]);
 
   return (
-    <div className="flex-1 flex flex-col relative h-full overflow-hidden">
+    <div className="flex-1 flex flex-col relative h-full overflow-hidden bg-background">
       {!currentChatSession ? (
         <div className="flex-1 overflow-y-auto">
           <div className="max-w-3xl mx-auto px-4 pt-4">
             <div className="flex flex-col items-center justify-center h-full min-h-[50vh]">
-              <div className="p-6 bg-gray-50 dark:bg-gray-800 rounded-2xl shadow-sm max-w-md w-full text-center">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              <div className="p-6 bg-hover rounded-2xl shadow-sm max-w-md w-full text-center">
+                <h3 className="text-xl font-semibold text-adaptive mb-2">
                   Welcome to VoxAI Chat
                 </h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-6">
+                <p className="text-muted mb-6">
                   Start a new chat to interact with your files and get intelligent responses
                 </p>
                 <button
@@ -101,7 +101,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                     </div>
                   ) : messages.length === 0 && !isStreaming ? (
                     <div className="text-center py-12">
-                      <p className="text-gray-500 dark:text-gray-400">
+                      <p className="text-muted">
                         No messages yet. Start the conversation!
                       </p>
                     </div>
@@ -117,20 +117,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             {/* Message content */}
                             <div className={`flex-1 p-4 rounded-2xl ${
                               message.is_user 
-                                ? 'bg-gray-50 dark:bg-gray-900' 
+                                ? 'bg-background' 
                                 : ''
                             }`}>
                               <div className="flex items-center mb-1">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                <p className="text-sm font-medium text-adaptive">
                                   {message.is_user ? 'You' : 'VoxAI'}
                                 </p>
                                 <span className="mx-2 text-gray-300 dark:text-gray-600">•</span>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-muted">
                                   {new Date(message.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                                 </p>
                               </div>
                               <div className="prose dark:prose-invert max-w-none">
-                                <p className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">{message.content}</p>
+                                <p className="whitespace-pre-wrap text-adaptive">{message.content}</p>
                               </div>
                               
                               {/* Copy button */}
@@ -168,7 +168,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                           <div className="flex items-start">
                             {/* Avatar or indicator */}
                             <div className="mr-4 flex-shrink-0">
-                              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-hover text-gray-700 dark:text-gray-200">
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                                   <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
                                 </svg>
@@ -178,7 +178,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             {/* Message content */}
                             <div className="flex-1 p-4">
                               <div className="flex items-center mb-1">
-                                <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                <p className="text-sm font-medium text-adaptive">
                                   VoxAI
                                 </p>
                                 <span className="mx-2 text-gray-300 dark:text-gray-600">•</span>
@@ -189,7 +189,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                                 </div>
                               </div>
                               <div className="prose dark:prose-invert max-w-none">
-                                <p className="whitespace-pre-wrap text-gray-800 dark:text-gray-200">{streamingContent}</p>
+                                <p className="whitespace-pre-wrap text-adaptive">{streamingContent}</p>
                               </div>
                             </div>
                           </div>
@@ -208,13 +208,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 z-20">
             <div className="max-w-3xl mx-auto">
               <form onSubmit={handleSendMessage} className="relative">
-                <div className="flex items-center bg-white dark:bg-gray-800 backdrop-blur-md rounded-2xl overflow-hidden shadow-xl border border-gray-200/50 dark:border-gray-700/50 focus-within:ring-2 focus-within:ring-black dark:focus-within:ring-white before:absolute before:inset-0 before:rounded-2xl before:shadow-[0_0_15px_rgba(0,0,0,0.05)] dark:before:shadow-[0_0_15px_rgba(255,255,255,0.03)]">
+                <div className="flex items-center backdrop-blur-md rounded-2xl overflow-hidden shadow-xl border border-adaptive focus-within:ring-2 focus-within:ring-black dark:focus-within:ring-white before:absolute before:inset-0 before:rounded-2xl before:shadow-[0_0_15px_rgba(0,0,0,0.05)] dark:before:shadow-[0_0_15px_rgba(255,255,255,0.03)]">
                   <textarea
                     ref={textareaRef}
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
                     placeholder="Type your message..."
-                    className="flex-1 p-4 bg-transparent outline-none text-gray-900 dark:text-white relative z-10 resize-none min-h-[56px] max-h-[25vh] overflow-y-auto"
+                    className="flex-1 p-4 bg-transparent outline-none text-adaptive relative z-10 resize-none min-h-[56px] max-h-[25vh] overflow-y-auto"
                     disabled={isStreaming}
                     rows={1}
                     onInput={autoResizeTextarea}

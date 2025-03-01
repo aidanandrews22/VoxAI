@@ -1,11 +1,12 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import { ClerkProvider, UserButton } from "@clerk/clerk-react";
+import { ClerkProvider } from "@clerk/clerk-react";
 import { dark } from "@clerk/themes";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import App from "./App.tsx";
+import Header from "./components/Header.tsx";
 import "./index.css";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -24,15 +25,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// Floating UserButton component
-const FloatingUserButton = () => {
-  return (
-    <div className="fixed top-4 right-4 z-50">
-      <UserButton />
-    </div>
-  );
-};
-
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
@@ -48,7 +40,7 @@ createRoot(document.getElementById("root")!).render(
           },
         }}
       >
-        <FloatingUserButton />
+        <Header />
         <App />
       </ClerkProvider>
     </QueryClientProvider>

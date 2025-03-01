@@ -320,7 +320,7 @@ export default function NotebooksPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="flex h-screen bg-background">
       {/* Sidebar */}
       {supabaseUserId && (
         <Sidebar
@@ -339,7 +339,7 @@ export default function NotebooksPage() {
         <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-4 py-8">
             <div className="flex space-x-10 items-center mb-8">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{getFolderTitle()}</h1>
+              <h1 className="text-3xl font-bold text-adaptive">{getFolderTitle()}</h1>
               
               {/* Toggle for including nested notebooks - only show in folder view */}
               {showNestedToggle && (
@@ -352,7 +352,7 @@ export default function NotebooksPage() {
                       onChange={() => setIncludeNestedNotebooks(!includeNestedNotebooks)}
                     />
                     <div className="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 dark:peer-focus:ring-gray-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-black dark:peer-checked:bg-white"></div>
-                    <span className="ms-3 text-sm font-medium text-gray-900 dark:text-gray-300">
+                    <span className="ms-3 text-sm font-medium text-adaptive">
                       Include nested notebooks
                     </span>
                   </label>
@@ -393,18 +393,18 @@ export default function NotebooksPage() {
                 {notebooks.map((notebook) => (
                   <div
                     key={notebook.id}
-                    className="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow relative group"
+                    className="bg-card p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow relative group"
                   >
                     <Link to={`/notebooks/${notebook.id}`} className="block">
-                      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                      <h2 className="text-xl font-bold text-adaptive mb-2">
                         {notebook.title}
                       </h2>
                       {notebook.description && (
-                        <p className="text-gray-600 dark:text-gray-300 mb-4">
+                        <p className="text-muted mb-4">
                           {notebook.description}
                         </p>
                       )}
-                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                      <div className="text-sm text-muted">
                         Created {new Date(notebook.created_at).toLocaleDateString()}
                       </div>
                     </Link>
@@ -416,7 +416,7 @@ export default function NotebooksPage() {
                         e.stopPropagation();
                         openEditModal(notebook);
                       }}
-                      className="absolute top-3 right-3 p-2 bg-gray-100 dark:bg-gray-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      className="absolute top-3 right-3 p-2 bg-hover dark:bg-gray-700 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                       aria-label="Edit notebook"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -431,7 +431,7 @@ export default function NotebooksPage() {
             {/* Empty state */}
             {!isLoading && notebooks.length === 0 && (
               <div className="text-center py-12">
-                <p className="text-gray-500 dark:text-gray-400 text-lg mb-4">
+                <p className="text-muted text-lg mb-4">
                   {selectedFolderId === null
                     ? "You don't have any notebooks yet."
                     : selectedFolderId === 'unorganized'

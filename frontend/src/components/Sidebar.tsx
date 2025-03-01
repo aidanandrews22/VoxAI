@@ -364,7 +364,7 @@ const Sidebar = ({
           className={`flex items-center py-2 px-2 my-1 rounded-md cursor-pointer group transition-all duration-200 ${
             isSelected 
               ? 'bg-black text-white dark:bg-white dark:text-black' 
-              : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+              : 'hover:bg-hover text-adaptive'
           } ${isMobile ? 'py-2.5' : 'py-1.5'}`}
           style={{ paddingLeft: `${(depth + 1) * 12}px` }}
           onClick={() => handleSelectFolder(folder.id)}
@@ -469,7 +469,7 @@ const Sidebar = ({
       {isMobile && isCollapsed && (
         <button
           onClick={onToggleCollapse}
-          className="fixed top-4 left-4 z-50 p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-lg cursor-pointer transition-all duration-300 hover:shadow-xl active:scale-95"
+          className="fixed top-4 left-4 z-50 p-2.5 rounded-full bg-card shadow-lg cursor-pointer transition-all duration-300 hover:shadow-xl active:scale-95"
           aria-label="Open sidebar"
         >
           <svg 
@@ -482,7 +482,7 @@ const Sidebar = ({
             strokeWidth="2" 
             strokeLinecap="round" 
             strokeLinejoin="round" 
-            className="h-5 w-5 text-gray-700 dark:text-gray-300 transition-transform duration-200"
+            className="h-5 w-5 text-adaptive transition-transform duration-200"
           >
             <path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"></path>
             <path d="M9 4v16"></path>
@@ -501,7 +501,7 @@ const Sidebar = ({
           {/* Main toggle button - always visible */}
           <button
             onClick={onToggleCollapse}
-            className={`p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-lg cursor-pointer transition-all duration-300 hover:shadow-xl active:scale-95 ${isHoveringCollapsed ? 'ring-2 ring-black dark:ring-white ring-opacity-20 dark:ring-opacity-20' : ''}`}
+            className={`p-2.5 rounded-full bg-card shadow-lg cursor-pointer transition-all duration-300 hover:shadow-xl active:scale-95 ${isHoveringCollapsed ? 'ring-2 ring-black dark:ring-white ring-opacity-20 dark:ring-opacity-20' : ''}`}
             aria-label="Open sidebar"
           >
             <svg 
@@ -514,7 +514,7 @@ const Sidebar = ({
               strokeWidth="2" 
               strokeLinecap="round" 
               strokeLinejoin="round" 
-              className={`h-5 w-5 text-gray-700 dark:text-gray-300 transition-all duration-200 ${isHoveringCollapsed ? 'scale-110' : ''}`}
+              className={`h-5 w-5 text-adaptive transition-all duration-200 ${isHoveringCollapsed ? 'scale-110' : ''}`}
             >
               <path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"></path>
               <path d="M9 4v16"></path>
@@ -531,10 +531,10 @@ const Sidebar = ({
                   setActiveTab?.('files');
                   onToggleCollapse(); // Expand the sidebar
                 }}
-                className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                 aria-label="Files"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-adaptive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </button>
@@ -545,10 +545,10 @@ const Sidebar = ({
                   setActiveTab?.('chats');
                   onToggleCollapse(); // Expand the sidebar
                 }}
-                className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                 aria-label="Chats"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-adaptive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                 </svg>
               </button>
@@ -556,10 +556,10 @@ const Sidebar = ({
               {/* New chat button - Keep functionality as is */}
               <div 
                 onClick={handleCreateSession}
-                className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                 aria-label="New Chat"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-adaptive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
               </div>
@@ -567,10 +567,10 @@ const Sidebar = ({
               {/* Upload file button - Keep functionality as is */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                 aria-label="Upload File"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-700 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-adaptive" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
               </div>
@@ -583,12 +583,12 @@ const Sidebar = ({
               {/* All Notebooks icon */}
               <button 
                 onClick={() => handleSelectFolder(null)}
-                className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                 aria-label="All Notebooks"
               >
                 <svg 
                   xmlns="http://www.w3.org/2000/svg" 
-                  className="h-5 w-5 text-gray-700 dark:text-gray-300" 
+                  className="h-5 w-5 text-adaptive" 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
@@ -605,12 +605,12 @@ const Sidebar = ({
               {/* Unorganized notebooks icon */}
               <button 
                 onClick={() => handleSelectFolder('unorganized')}
-                className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                 aria-label="Unorganized Notebooks"
               >
                 <svg 
                   xmlns="http://www.w3.org/2000/svg" 
-                  className="h-5 w-5 text-gray-700 dark:text-gray-300" 
+                  className="h-5 w-5 text-adaptive" 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
@@ -629,13 +629,13 @@ const Sidebar = ({
                 <button 
                   key={folder.id}
                   onClick={() => handleSelectFolder(folder.id)}
-                  className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                  className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                   aria-label={folder.title}
                   title={folder.title}
                 >
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
-                    className="h-5 w-5 text-gray-700 dark:text-gray-300" 
+                    className="h-5 w-5 text-adaptive" 
                     fill="none" 
                     viewBox="0 0 24 24" 
                     stroke="currentColor"
@@ -654,12 +654,12 @@ const Sidebar = ({
               {allFoldersList.length > 3 && (
                 <button 
                   onClick={onToggleCollapse}
-                  className="p-2.5 rounded-full bg-white dark:bg-gray-800 shadow-md cursor-pointer transition-all duration-300 hover:shadow-lg active:scale-95"
+                  className="p-2.5 rounded-full bg-card shadow-md cursor-pointer transition-all duration-300 hover:bg-hover hover:shadow-lg active:scale-95"
                   aria-label="Show more folders"
                 >
                   <svg 
                     xmlns="http://www.w3.org/2000/svg" 
-                    className="h-5 w-5 text-gray-700 dark:text-gray-300" 
+                    className="h-5 w-5 text-adaptive" 
                     fill="none" 
                     viewBox="0 0 24 24" 
                     stroke="currentColor"
@@ -690,7 +690,7 @@ const Sidebar = ({
       {/* Overlay for mobile - only visible when sidebar is expanded */}
       {isMobile && !isCollapsed && (
         <div 
-          className="fixed inset-0 bg-black/30 backdrop-blur-sm z-30 transition-all duration-300 ease-in-out"
+          className="fixed inset-0 bg-overlay backdrop-blur-sm z-30 transition-all duration-300 ease-in-out"
           onClick={onToggleCollapse}
           aria-hidden="true"
         />
@@ -703,22 +703,22 @@ const Sidebar = ({
             // Mobile styles
             isCollapsed ? 
               'hidden' : 
-              'fixed inset-y-0 left-0 z-40 bg-white dark:bg-gray-900 w-[85%] max-w-sm h-full overflow-y-auto shadow-xl transition-all duration-300 ease-in-out transform translate-x-0 flex flex-col'
+              'fixed inset-y-0 left-0 z-40 bg-card w-[85%] max-w-sm h-full overflow-y-auto shadow-xl transition-all duration-300 ease-in-out transform translate-x-0 flex flex-col'
             : 
             // Desktop styles - Hide completely when collapsed
-            `h-full bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col shadow-sm transition-all duration-300 ease-in-out ${
+            `h-full bg-card border-r border-none flex flex-col shadow-sm transition-all duration-300 ease-in-out ${
               isCollapsed ? 'hidden' : 'w-64 overflow-y-auto'
             }`
         }`}
       >
         {/* Header with toggle button */}
-        <div className="p-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-800 transition-colors duration-200">
+        <div className="p-4 flex items-center justify-between transition-colors duration-200">
           {(!isCollapsed || isMobile) && (
             <div className="flex items-center">
               {mode === 'notebook' && (
                 <button 
                   onClick={() => navigate('/notebooks')}
-                  className="mr-2 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-all duration-200"
+                  className="mr-2 p-1 rounded-md hover:bg-hover cursor-pointer transition-all duration-200"
                   aria-label="Back to notebooks"
                 >
                   <svg 
@@ -732,14 +732,14 @@ const Sidebar = ({
                   </svg>
                 </button>
               )}
-              <h2 className="font-medium text-gray-800 dark:text-white">
+              <h2 className="font-medium text-adaptive">
                 {mode === 'notebook' ? notebookName : 'Folders'}
               </h2>
             </div>
           )}
           <button 
             onClick={onToggleCollapse}
-            className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-all duration-200 active:scale-95"
+            className="p-1.5 rounded-md hover:bg-hover cursor-pointer transition-all duration-200 active:scale-95"
             aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {isMobile ? (
@@ -753,7 +753,7 @@ const Sidebar = ({
                 strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
-                className="h-5 w-5 text-gray-600 dark:text-gray-400"
+                className="h-5 w-5 text-adaptive"
               >
                 <rect width="18" height="18" x="3" y="3" rx="2"></rect>
                 <path d="M15 3v18"></path>
@@ -770,7 +770,7 @@ const Sidebar = ({
                 strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
-                className="h-5 w-5 text-gray-600 dark:text-gray-400"
+                className="h-5 w-5 text-adaptive"
               >
                 <path d="M4 4m0 2a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2z"></path>
                 <path d="M9 4v16"></path>
@@ -787,7 +787,7 @@ const Sidebar = ({
                 strokeWidth="2" 
                 strokeLinecap="round" 
                 strokeLinejoin="round" 
-                className="h-5 w-5 text-gray-600 dark:text-gray-400"
+                className="h-5 w-5 text-adaptive"
               >
                 <rect width="18" height="18" x="3" y="3" rx="2"></rect>
                 <path d="M15 3v18"></path>
@@ -815,12 +815,12 @@ const Sidebar = ({
                 
                 {/* Delete folder confirmation modal */}
                 {folderToDelete && !isCollapsed && (
-                  <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className={`bg-white dark:bg-gray-800 rounded-lg p-6 ${isMobile ? 'w-[90%]' : 'max-w-sm'} mx-auto shadow-xl transition-all duration-300 ease-in-out animate-fadeIn`}>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
+                  <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
+                    <div className={`bg-card rounded-lg p-6 ${isMobile ? 'w-[90%]' : 'max-w-sm'} mx-auto shadow-xl transition-all duration-300 ease-in-out animate-fadeIn`}>
+                      <h3 className="text-lg font-medium text-adaptive mb-4">
                         Confirm Deletion
                       </h3>
-                      <p className="text-gray-700 dark:text-gray-300 mb-6">
+                      <p className="text-muted mb-6">
                         {folderToDelete.isParent 
                           ? 'This folder contains subfolders and/or notebooks. Deleting it will also delete all its contents. Are you sure you want to continue?' 
                           : 'Are you sure you want to delete this folder?'}
@@ -828,7 +828,7 @@ const Sidebar = ({
                       <div className="flex justify-end space-x-3">
                         <button
                           onClick={cancelDeleteFolder}
-                          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md cursor-pointer transition-all duration-200"
+                          className="px-4 py-2 text-sm font-medium text-adaptive bg-hover hover:bg-active dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md cursor-pointer transition-all duration-200"
                         >
                           Cancel
                         </button>
@@ -854,7 +854,7 @@ const Sidebar = ({
                       className={`flex items-center py-1.5 px-3 my-1.5 rounded-md cursor-pointer transition-all duration-200 ${
                         selectedFolderId === null 
                           ? 'bg-black text-white dark:bg-white dark:text-black' 
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                          : 'hover:bg-hover'
                       }`}
                       onClick={() => handleSelectFolder(null)}
                     >
@@ -880,7 +880,7 @@ const Sidebar = ({
                       className={`flex items-center py-1.5 px-3 my-1.5 rounded-md cursor-pointer transition-all duration-200 ${
                         selectedFolderId === 'unorganized' 
                           ? 'bg-black text-white dark:bg-white dark:text-black' 
-                          : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                          : 'hover:bg-hover'
                       }`}
                       onClick={() => handleSelectFolder('unorganized')}
                     >
@@ -913,7 +913,7 @@ const Sidebar = ({
                           setIsCreatingFolder(true);
                           setParentFolderId(null);
                         }}
-                        className="flex items-center w-full py-2 px-3 mt-3 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md cursor-pointer transition-all duration-200"
+                        className="flex items-center w-full py-2 px-3 mt-3 text-sm text-adaptive dark:text-gray-400 hover:bg-hover rounded-md cursor-pointer transition-all duration-200"
                       >
                         <svg 
                           xmlns="http://www.w3.org/2000/svg" 
@@ -930,24 +930,24 @@ const Sidebar = ({
 
                     {/* Create folder modal */}
                     {isCreatingFolder && (
-                      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50">
-                        <div className={`bg-white dark:bg-gray-800 rounded-lg p-6 ${isMobile ? 'w-[90%]' : 'max-w-sm'} mx-auto shadow-xl transition-all duration-300 ease-in-out animate-fadeIn`}>
-                          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
-                            {parentFolderId ? 'New Subfolder' : 'New Folder'}
+                      <div className="fixed inset-0 bg-overlay backdrop-blur-sm flex items-center justify-center z-50">
+                        <div className={`bg-card rounded-lg p-6 ${isMobile ? 'w-[90%]' : 'max-w-sm'} mx-auto shadow-xl transition-all duration-300 ease-in-out animate-fadeIn`}>
+                          <h3 className="text-lg font-medium text-adaptive mb-4">
+                            Create New Folder
                           </h3>
                           <form onSubmit={handleCreateNewFolder}>
                             <div className="mb-4">
-                              <label htmlFor="folderName" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                              <label htmlFor="folderName" className="block text-sm font-medium text-muted mb-2">
                                 Folder Name
                               </label>
                               <input
-                                id="folderName"
                                 type="text"
+                                id="folderName"
                                 value={newFolderName}
                                 onChange={(e) => setNewFolderName(e.target.value)}
-                                className="w-full text-sm px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-md bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-all duration-200"
+                                className="w-full text-sm px-3 py-2 border border-none rounded-md bg-input text-adaptive focus:outline-none focus:ring-1 focus:ring-black dark:focus:ring-white transition-all duration-200"
                                 placeholder="Enter folder name"
-                                autoFocus
+                                required
                               />
                             </div>
                             <div className="flex justify-end space-x-3">
@@ -958,7 +958,7 @@ const Sidebar = ({
                                   setNewFolderName('');
                                   setParentFolderId(null);
                                 }}
-                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:text-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md cursor-pointer transition-all duration-200"
+                                className="px-4 py-2 text-sm font-medium text-adaptive bg-hover hover:bg-active dark:bg-gray-700 dark:hover:bg-gray-600 rounded-md cursor-pointer transition-all duration-200"
                               >
                                 Cancel
                               </button>
@@ -984,23 +984,23 @@ const Sidebar = ({
             {!isCollapsed && (
               <>
                 {/* Tabs for Files and Chat History */}
-                <div className="flex border-b border-gray-200 dark:border-gray-700">
+                <div className="flex border-b border-none">
                   <button
                     onClick={() => setActiveTab?.('files')}
                     className={`flex-1 py-3 text-sm font-medium ${
-                      activeTab === 'files'
-                        ? 'text-black dark:text-white border-b-2 border-black dark:border-white'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                      activeTab === 'files' 
+                      ? 'text-adaptive border-b-2 border-black dark:border-white'
+                      : 'text-muted hover:text-adaptive'
                     } cursor-pointer`}
                   >
-                    Knowledge
+                    Files
                   </button>
                   <button
                     onClick={() => setActiveTab?.('chats')}
                     className={`flex-1 py-3 text-sm font-medium ${
-                      activeTab === 'chats'
-                        ? 'text-black dark:text-white border-b-2 border-black dark:border-white'
-                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                      activeTab === 'chats' 
+                      ? 'text-adaptive border-b-2 border-black dark:border-white'
+                      : 'text-muted hover:text-adaptive'
                     } cursor-pointer`}
                   >
                     Chats
@@ -1010,7 +1010,7 @@ const Sidebar = ({
                 {/* Files Tab Content */}
                 {activeTab === 'files' && (
                   <div className="flex-1 flex flex-col">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-b border-none">
                       <input
                         type="file"
                         ref={fileInputRef}
@@ -1022,7 +1022,7 @@ const Sidebar = ({
                         htmlFor="file-upload"
                         className={`cursor-pointer flex flex-col items-center justify-center w-full ${
                           isMobile ? 'h-28' : 'h-24'
-                        } border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500 bg-gray-50 dark:bg-gray-800/50 transition-all duration-200 active:scale-[0.98]`}
+                        } border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500  transition-all duration-200 active:scale-[0.98]`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} text-gray-500 dark:text-gray-400 mb-2 transition-transform duration-200 group-hover:scale-110`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -1037,7 +1037,7 @@ const Sidebar = ({
                           <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-gray-900 dark:border-white"></div>
                         </div>
                       ) : files.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">
+                        <p className="text-muted text-sm text-center py-4">
                           No files uploaded yet
                         </p>
                       ) : (
@@ -1065,7 +1065,7 @@ const Sidebar = ({
                           {files.map((file) => (
                             <li 
                               key={file.id} 
-                              className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer transition-all duration-200 ${
+                              className={`p-2 hover:bg-hover rounded cursor-pointer transition-all duration-200 ${
                                 isMobile ? 'p-3' : 'p-2'
                               }`}
                             >
@@ -1076,7 +1076,7 @@ const Sidebar = ({
                                 >
                                   <p className={`text-sm font-medium truncate ${
                                     checkedFiles.has(file.id) 
-                                      ? 'text-gray-900 dark:text-white' 
+                                      ? 'text-adaptive' 
                                       : 'text-gray-500 dark:text-gray-400 line-through'
                                   }`}>
                                     {file.file_name}
@@ -1112,23 +1112,23 @@ const Sidebar = ({
                 {/* Chat History Tab Content */}
                 {activeTab === 'chats' && (
                   <div className="flex-1 flex flex-col">
-                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                    <div className="p-4 border-b border-none">
                       <div
                         onClick={handleCreateSession}
                         className={`cursor-pointer flex items-center justify-center w-full ${
                           isMobile ? 'p-4' : 'p-3'
-                        } rounded-lg bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-all duration-200 active:scale-[0.98]`}
+                        } rounded-lg bg-hover dark:bg-gray-800/50 border border-none hover:bg-hover/50 transition-all duration-200 active:scale-[0.98]`}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" className={`${isMobile ? 'h-6 w-6' : 'h-5 w-5'} text-gray-500 dark:text-gray-400 mr-2`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                         </svg>
-                        <span className={`${isMobile ? 'text-base' : 'text-sm'} font-medium text-gray-700 dark:text-gray-300`}>New Chat</span>
+                        <span className={`${isMobile ? 'text-base' : 'text-sm'} font-medium text-adaptive`}>New Chat</span>
                       </div>
                     </div>
                     
                     <div className="flex-1 overflow-y-auto p-4">
                       {chatSessions.length === 0 ? (
-                        <p className="text-gray-500 dark:text-gray-400 text-sm text-center py-4">
+                        <p className="text-muted text-sm text-center py-4">
                           No chat sessions yet
                         </p>
                       ) : (
@@ -1138,8 +1138,8 @@ const Sidebar = ({
                               key={session.id}
                               className={`${isMobile ? 'p-3' : 'p-2'} rounded ${
                                 currentChatSession?.id === session.id
-                                  ? 'bg-gray-200 dark:bg-gray-700'
-                                  : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                                  ? 'bg-hover'
+                                  : 'hover:bg-hover'
                               } transition-all duration-200`}
                             >
                               <div className="flex justify-between items-center">
@@ -1147,7 +1147,7 @@ const Sidebar = ({
                                   className="flex-1 cursor-pointer"
                                   onClick={() => setCurrentChatSession?.(session)}
                                 >
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                  <p className="text-sm font-medium text-adaptive truncate">
                                     {session.title}
                                   </p>
                                   <p className="text-xs text-gray-500 dark:text-gray-400">
