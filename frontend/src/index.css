@@ -12,7 +12,7 @@
   --color-surface-light: oklch(0.98 0 0);      /* Off-white for cards in light mode */
   --color-surface-dark: oklch(0.15 0 0);       /* Dark gray for cards in dark mode */
   --color-border-light: oklch(0.85 0 0);       /* Light gray for borders in light mode */
-  --color-border-dark: oklch(0.373 0.034 259.733);        /* Dark gray for borders in dark mode */
+  --color-border-dark: oklch(0.278 0.033 256.848);        /* Dark gray for borders in dark mode */
   
   /* Additional color variables for common UI elements */
   --color-card-light: var(--color-gray-50);            /* White for cards in light mode */
@@ -289,6 +289,23 @@
     
     html.force-dark & {
       border-color: var(--color-border-dark);
+    }
+  }
+
+  .ring-adaptive {
+    @media (prefers-color-scheme: dark) {
+      --tw-ring-color: var(--color-border-dark);
+    }
+    @media (prefers-color-scheme: light) {
+      --tw-ring-color: var(--color-border-light);
+    }
+    
+    html.force-light & {
+      --tw-ring-color: var(--color-border-light);
+    }
+    
+    html.force-dark & {
+      --tw-ring-color: var(--color-border-dark);
     }
   }
 
