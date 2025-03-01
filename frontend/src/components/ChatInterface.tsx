@@ -117,7 +117,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
                             {/* Message content */}
                             <div className={`flex-1 p-4 rounded-2xl ${
                               message.is_user 
-                                ? 'bg-background' 
+                                ? 'bg-card' 
                                 : ''
                             }`}>
                               <div className="flex items-center mb-1">
