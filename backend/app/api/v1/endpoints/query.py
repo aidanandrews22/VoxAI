@@ -13,6 +13,8 @@ from pydantic import ValidationError
 from app.core.logging import logger
 from app.schemas.file import QueryRequest, QueryResponse, QueryResult
 from app.services.rag_service import rag_service
+from app.db.pinecone import pinecone_client
+from app.db.supabase import supabase_client
 
 router = APIRouter()
 
@@ -36,9 +38,31 @@ async def query(
         QueryResponse: The query response.
     """
     try:
+        logger.info(f"DEBUG - Original query: {request.query}")
         # Handle streaming separately
         if request.stream:
             return await _stream_query(request)
+        
+        # Default filter if none provided
+        filter_dict = request.filter or {}
+        
+        # Handle user_id if provided to get toggled files
+        if request.user_id:
+            # Get pinecone_ids from user's toggled files
+            pinecone_ids = await supabase_client.get_user_toggled_files(request.user_id)
+            
+            # First get all vector IDs that match the prefixes
+            if pinecone_ids:
+                vector_ids = []
+                for pinecone_id in pinecone_ids:
+                    ids = await pinecone_client.list_vectors(prefix=pinecone_id, namespace=request.namespace)
+                    # Collect all IDs
+                    vector_ids.extend(ids)
+                
+                # If we found matching vector IDs, create a proper filter
+                if vector_ids:
+                    # Use the helper method to create a properly formatted filter
+                    filter_dict = await pinecone_client.create_id_filter(vector_ids)
         
         # Perform RAG query
         answer, context, query_time = await rag_service.query(
@@ -48,21 +72,65 @@ async def query(
             use_rag=request.use_rag,
             stream=False,
             namespace=request.namespace,
-            filter=request.filter
+            filter=filter_dict
         )
         
-        # Format sources
-        sources = [
-            QueryResult(
-                text=doc.get("text", ""),
-                score=doc.get("score", 0.0),
-                file_id=doc.get("file_id", ""),
-                file_path=doc.get("file_path", ""),
-                source=doc.get("source", ""),
-                metadata=doc.get("metadata", {})
+        # Process context: group by file_id and fetch complete metadata
+        grouped_context = {}
+        file_metadata_cache = {}
+        
+        # First group all chunks by file_id
+        for doc in context:
+            file_id = doc.get("file_id", "")
+            if not file_id:
+                continue
+                
+            if file_id not in grouped_context:
+                grouped_context[file_id] = []
+                
+            grouped_context[file_id].append(doc)
+        
+        # Log the number of unique files found
+        logger.info(f"Found {len(grouped_context)} unique files in RAG results")
+        
+        # Now create sources with complete file content and metadata
+        sources = []
+        for file_id, docs in grouped_context.items():
+            # Get file metadata if we haven't cached it yet
+            if file_id not in file_metadata_cache:
+                file_metadata = await supabase_client.get_file_metadata(file_id)
+                file_metadata_cache[file_id] = file_metadata
+                logger.info(f"Retrieved metadata for file_id {file_id}: {file_metadata}")
+            else:
+                file_metadata = file_metadata_cache[file_id]
+                
+            # Sort chunks by their index to maintain order
+            docs.sort(key=lambda x: x.get("metadata", {}).get("chunk_index", 0))
+            
+            # Combine all chunks for this file
+            full_text = "\n\n".join([doc.get("text", "") for doc in docs])
+            
+            # Extract filename from file_path
+            file_path = docs[0].get("file_path", "") if docs else ""
+            filename = file_path.split("/")[-1] if "/" in file_path else file_path
+            
+            logger.info(f"Processed file {filename} with {len(docs)} chunks and {len(full_text)} characters")
+            
+            # Create a single source entry with the complete context
+            sources.append(
+                QueryResult(
+                    text=full_text,
+                    score=max([doc.get("score", 0.0) for doc in docs]) if docs else 0.0,
+                    file_id=file_id,
+                    file_path=file_path,
+                    source=filename,
+                    metadata={
+                        "description": file_metadata.get("description", ""),
+                        "file_metadata": file_metadata.get("metadata", {}),
+                        "chunk_count": len(docs)
+                    }
+                )
             )
-            for doc in context
-        ]
         
         return QueryResponse(
             answer=answer,
@@ -91,17 +159,127 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
         start_time = time.time()
         
         try:
+            # Validate and sanitize the query
+            query = request.query
+            logger.info(f"DEBUG - Original query: '{query}'")
+            
+            # Check if query already contains streaming data (from a previous error perhaps)
+            if query.strip().startswith('data:'):
+                try:
+                    # Try to extract a clean query from the streaming data
+                    # Look for JSON structures and extract the original query if possible
+                    import re
+                    
+                    # First, try to find a JSON object
+                    json_matches = re.findall(r'data: ({.*?})\n\n', query)
+                    if json_matches:
+                        for match in json_matches:
+                            try:
+                                data = json.loads(match)
+                                if 'query' in data:
+                                    query = data['query']
+                                    logger.info(f"DEBUG - Extracted query: '{query}'")
+                                    break
+                            except json.JSONDecodeError:
+                                pass
+                    
+                    # If we still have streaming data, use a simple fallback
+                    if query.strip().startswith('data:'):
+                        # Fallback: just use a generic query
+                        query = "Please provide information"
+                        logger.warning(f"DEBUG - Couldn't extract query, using fallback: '{query}'")
+                except Exception as extraction_error:
+                    logger.error(f"Error extracting query: {extraction_error}")
+                    query = "Please provide information"  # Fallback
+            
             # Retrieve context
-            context = []
+            raw_context = []
             if request.use_rag:
-                context = await rag_service.retrieve_context(
-                    query=request.query,
+                # Default filter if none provided
+                filter_dict = request.filter or {}
+                
+                # Handle user_id if provided to get toggled files
+                if request.user_id:
+                    # Get pinecone_ids from user's toggled files
+                    pinecone_ids = await supabase_client.get_user_toggled_files(request.user_id)
+                    
+                    # First get all vector IDs that match the prefixes
+                    if pinecone_ids:
+                        vector_ids = []
+                        for pinecone_id in pinecone_ids:
+                            ids = await pinecone_client.list_vectors(prefix=pinecone_id, namespace=request.namespace)
+                            # Collect all IDs
+                            vector_ids.extend(ids)
+                        
+                        # If we found matching vector IDs, create a proper filter
+                        if vector_ids:
+                            # Use the helper method to create a properly formatted filter
+                            filter_dict = await pinecone_client.create_id_filter(vector_ids)
+                
+                # Use the sanitized query
+                raw_context = await rag_service.retrieve_context(
+                    query=query,
                     top_k=request.top_k,
                     namespace=request.namespace,
-                    filter=request.filter
+                    filter=filter_dict
                 )
             
-            # Format sources for the response
+            # Process context: group by file_id and fetch complete metadata
+            grouped_context = {}
+            file_metadata_cache = {}
+            
+            # First group all chunks by file_id
+            for doc in raw_context:
+                file_id = doc.get("file_id", "")
+                if not file_id:
+                    continue
+                    
+                if file_id not in grouped_context:
+                    grouped_context[file_id] = []
+                    
+                grouped_context[file_id].append(doc)
+            
+            # Log the number of unique files found
+            logger.info(f"Found {len(grouped_context)} unique files in RAG results (streaming)")
+            
+            # Now create context with complete file content and metadata
+            context = []
+            for file_id, docs in grouped_context.items():
+                # Get file metadata if we haven't cached it yet
+                if file_id not in file_metadata_cache:
+                    file_metadata = await supabase_client.get_file_metadata(file_id)
+                    file_metadata_cache[file_id] = file_metadata
+                    logger.info(f"Retrieved metadata for file_id {file_id}: {file_metadata}")
+                else:
+                    file_metadata = file_metadata_cache[file_id]
+                    
+                # Sort chunks by their index to maintain order
+                docs.sort(key=lambda x: x.get("metadata", {}).get("chunk_index", 0))
+                
+                # Combine all chunks for this file
+                full_text = "\n\n".join([doc.get("text", "") for doc in docs])
+                
+                # Extract filename from file_path
+                file_path = docs[0].get("file_path", "") if docs else ""
+                filename = file_path.split("/")[-1] if "/" in file_path else file_path
+                
+                logger.info(f"Processed file {filename} with {len(docs)} chunks and {len(full_text)} characters (streaming)")
+                
+                # Create a single context entry with the complete file content
+                context.append({
+                    "text": full_text,
+                    "score": max([doc.get("score", 0.0) for doc in docs]) if docs else 0.0,
+                    "file_id": file_id,
+                    "file_path": file_path,
+                    "source": filename,
+                    "metadata": {
+                        "description": file_metadata.get("description", ""),
+                        "file_metadata": file_metadata.get("metadata", {}),
+                        "chunk_count": len(docs)
+                    }
+                })
+            
+            # Format sources for the response (using processed context)
             sources = [
                 {
                     "text": doc.get("text", ""),
@@ -120,16 +298,23 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
             
             # Stream the answer
             answer_stream = await rag_service.generate_answer(
-                query=request.query,
+                query=query,
                 context=context,
                 model_name=request.model_name,
                 stream=True
             )
             
-            async for chunk in answer_stream:
-                chunk_json = json.dumps({"type": "token", "data": chunk})
-                yield f"data: {chunk_json}\n\n"
-                await asyncio.sleep(0)  # Allow other tasks to run
+            # Since answer_stream is an AsyncGenerator, we can directly iterate over it
+            try:
+                async for chunk in answer_stream:
+                    logger.info(f"DEBUG - Received chunk: {chunk}")
+                    chunk_json = json.dumps({"type": "token", "data": chunk})
+                    yield f"data: {chunk_json}\n\n"
+                    await asyncio.sleep(0)  # Allow other tasks to run
+            except Exception as e:
+                logger.error(f"Error streaming chunks: {e}")
+                error_json = json.dumps({"type": "error", "error": f"Streaming error: {str(e)}"})
+                yield f"data: {error_json}\n\n"
             
             # Send query time as the final chunk
             query_time = (time.time() - start_time) * 1000

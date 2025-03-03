@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSupabaseUser } from '../../contexts/UserContext';
 import { getNotebook } from '../../services/notebookService';
-import { getNotebookFiles, uploadFile, deleteFile } from '../../services/fileUpload';
+import { getNotebookFiles, uploadFile, deleteFile, processFile } from '../../services/fileUpload';
 import { 
   createChatSession, 
   getNotebookChatSessions,
@@ -17,12 +17,19 @@ import Sidebar from '../../components/Sidebar';
 import ChatInterface from '../../components/ChatInterface';
 import DeleteConfirmationModal from '../../components/DeleteConfirmationModal';
 import LoadingSpinner from '../../components/LoadingSpinner';
+import { getCheckedFiles } from '../../components/Sidebar';
+import toast from 'react-hot-toast';
+
+// Extended NotebookFile type to include processing status
+interface ExtendedNotebookFile extends NotebookFile {
+  isProcessing?: boolean;
+}
 
 export default function NotebookDetailPage() {
   const { notebookId } = useParams<{ notebookId: string }>();
   const { supabaseUserId, isLoading: isUserLoading, getSupabaseClient } = useSupabaseUser();
   const [notebook, setNotebook] = useState<Notebook | null>(null);
-  const [files, setFiles] = useState<NotebookFile[]>([]);
+  const [files, setFiles] = useState<ExtendedNotebookFile[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
   const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -42,6 +49,7 @@ export default function NotebookDetailPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
 
   error;
   editedChatTitle;
@@ -169,35 +177,117 @@ export default function NotebookDetailPage() {
     
     const file = e.target.files[0];
     console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
-    console.log('User ID:', supabaseUserId, 'Notebook ID:', notebookId);
+    if (file.size > 50 * 1024 * 1024) { // 50MB
+      toast?.error('File size is too large to process');
+      return;
+    } else if (file.size > 10 * 1024 * 1024) { // 10MB
+      toast('File size is large, it may take a while to process', {
+        icon: '⚠️',
+        style: {
+          background: '#fffbeb',
+          color: '#92400e',
+          border: '1px solid #f59e0b',
+        },
+        duration: 3500,
+      });
+    }    
+    
+    // Create a temporary ID to track the uploading state
+    const tempId = `temp-${Date.now()}`;
+    
+    // Add to uploading files state - this will show the upload button as loading
+    setUploadingFiles(prev => {
+      const newSet = new Set(prev);
+      newSet.add(tempId);
+      return newSet;
+    });
+    
+    // Switch to files tab to show upload progress
+    setActiveTab('files');
     
     try {
       // Get authenticated Supabase client
-      console.log('Getting authenticated Supabase client...');
       const authClient = await getSupabaseClient();
       
-      // If we couldn't get an authenticated client, show an error
       if (!authClient) {
         console.error('Failed to get authenticated Supabase client');
         setError('Authentication error. Please try again or refresh the page.');
+        toast?.error('Authentication error. Please try again or refresh the page.');
         return;
       }
       
-      console.log('Authenticated client obtained, uploading file...');
+      // Upload to Supabase
       const result = await uploadFile(file, notebookId, supabaseUserId, authClient);
       
+      // Remove from uploading files state as soon as the Supabase upload is complete
+      setUploadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(tempId);
+        return newSet;
+      });
+      
       if (result.success && result.data) {
-        console.log('File upload successful:', result.data);
-        setFiles([result.data, ...files]);
+        // Add the file to the files list with processing status
+        const newFile: ExtendedNotebookFile = {
+          ...result.data,
+          isProcessing: result.isProcessing || false
+        };
+        
+        // Update files array with the new file at the beginning
+        setFiles(prevFiles => [newFile, ...prevFiles]);
+        
+        // Show success notification for the upload
+        toast?.success(result.message || 'File uploaded, AI is now processing...');
+        
+        // Initiate file processing in the background
+        processFile(result.data.id).then(processResult => {
+          if (processResult.success) {
+            console.log('Processing success:', processResult.message);
+            
+            // Update the file's processing status
+            setFiles(prevFiles => 
+              prevFiles.map(f => 
+                f.id === result.data?.id 
+                  ? { ...f, isProcessing: false } 
+                  : f
+              )
+            );
+            
+            // Show success notification for completed processing
+            toast?.success('File processing complete!');
+          } else {
+            console.error('Processing error:', processResult.error);
+            
+            // Update the file's processing status
+            setFiles(prevFiles => 
+              prevFiles.map(f => 
+                f.id === result.data?.id 
+                  ? { ...f, isProcessing: false } 
+                  : f
+              )
+            );
+            
+            // Show error notification
+            toast?.error(`Processing failed: ${processResult.error}`);
+          }
+        });
       } else {
         console.error('File upload failed:', result.error);
         setError('Failed to upload file');
+        
+        // Show detailed error message based on the error type
+        if (result.fileType) {
+          toast?.error(`Unsupported file type: ${result.fileType}. Please try a different file.`);
+        } else {
+          toast?.error(result.error || 'Failed to upload file');
+        }
       }
     } catch (err) {
       console.error('Error uploading file:', err);
       setError('An error occurred while uploading the file');
+      toast?.error('Error uploading file');
     } finally {
-      // Clear the file input
+      // Always clear the file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -261,6 +351,8 @@ export default function NotebookDetailPage() {
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!notebookId || !supabaseUserId || !currentChatSession || !inputMessage.trim()) return;
+
+    const checkedFiles = getCheckedFiles();
     
     const messageText = inputMessage.trim();
     setInputMessage('');
@@ -280,48 +372,48 @@ export default function NotebookDetailPage() {
         return;
       }
       
-      // Refresh messages to get the user message from the database
-      await refreshMessages(currentChatSession.id);
-      
-      // Start streaming
+      // Start streaming immediately without refreshing messages
       setIsStreaming(true);
       setStreamingContent('');
       
-      // Format messages for Gemini (get fresh messages from state)
-      const formattedMessages = formatMessagesForGemini(messages);
+      // Create a simple message array with just the current message
+      // This ensures only the exact query text is sent
+      const userOnlyMessage = [{
+        role: 'user' as 'user',
+        content: messageText
+      }];
       
-      console.log('Messages from database:', messages.length);
-      console.log('Formatted messages for Gemini:', formattedMessages.length);
-      
-      // Make sure we have the user's message in the formatted messages
-      // If the user message isn't in the database yet, add it manually
-      const userMessageInFormatted = formattedMessages.some(
-        msg => msg.role === 'user' && msg.content === messageText
-      );
-      
-      if (!userMessageInFormatted) {
-        console.log('Adding user message to formatted messages:', messageText);
-        formattedMessages.push({
-          role: 'user',
-          content: messageText
-        });
-      }
-      
-      console.log('Final formatted messages for Gemini:', formattedMessages.length);
+      console.log('Sending single user message:', messageText);
       
       // Stream the response
       try {
         let finalResponse = '';
         
         await streamChatWithGemini(
-          formattedMessages,
+          userOnlyMessage,
           (content) => {
             setStreamingContent(content);
             finalResponse = content;
-          }
+          },
+          supabaseUserId
         );
         
         console.log('Streaming complete. Saving AI message to Supabase');
+        
+        // Ensure the final response doesn't contain SSE format before saving
+        if (finalResponse.includes('data: {"type":')) {
+          console.warn('Final response contains SSE format. This is unexpected.');
+          
+          // Attempt to clean it up
+          try {
+            // Call our parser to extract just the text
+            const cleanResponse = parseStreamingResponseLocally(finalResponse);
+            finalResponse = cleanResponse || 'Error processing response';
+          } catch (parseError) {
+            console.error('Failed to parse streaming response:', parseError);
+            finalResponse = 'Error processing response';
+          }
+        }
         
         // After streaming is complete, save the AI message to the database
         const aiMessageResult = await sendChatMessage(
@@ -344,27 +436,13 @@ export default function NotebookDetailPage() {
       } catch (error) {
         console.error('Error streaming response:', error);
         setError('Failed to get AI response');
-        
-        // Save a fallback message to the database
-        const fallbackMessage = "I'm sorry, I encountered an error while processing your request. Please try again later.";
-        
-        await sendChatMessage(
-          currentChatSession.id,
-          notebookId,
-          supabaseUserId,
-          fallbackMessage,
-          false
-        ).catch(err => console.error('Error saving fallback message:', err));
-        
-        // Refresh messages to get both user message and fallback AI response
-        await refreshMessages(currentChatSession.id);
       } finally {
         setIsStreaming(false);
-        setStreamingContent('');
       }
-    } catch (err) {
-      console.error('Error sending message:', err);
-      setError('An error occurred while sending your message');
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setError('Failed to send message');
+      setIsStreaming(false);
     }
   };
 
@@ -420,6 +498,78 @@ export default function NotebookDetailPage() {
     setEditedChatTitle(session.title);
     setIsEditingChatTitle(true);
   };
+
+  /**
+   * Local version of parseStreamingResponse to handle any remaining SSE formatting
+   * This is a fallback in case the service doesn't properly parse the response
+   */
+  function parseStreamingResponseLocally(streamData: string): string {
+    // Helper function to remove common AI response prefixes
+    function removeCommonPrefixes(text: string): string {
+      // List of prefixes to check and remove
+      const prefixesToRemove = [
+        'Answer:', 
+        'Answer :', 
+        'AI:', 
+        'AI :', 
+        'Assistant:', 
+        'Assistant :'
+      ];
+      
+      // Check for each prefix and remove if found
+      for (const prefix of prefixesToRemove) {
+        if (text.startsWith(prefix)) {
+          return text.substring(prefix.length).trim();
+        }
+      }
+      
+      return text;
+    }
+    
+    let extractedText = '';
+    
+    try {
+      // Split the stream data into lines
+      const lines = streamData.split('\n');
+      
+      for (const line of lines) {
+        // Skip empty lines
+        if (!line.trim()) continue;
+        
+        // Check if line is a data line
+        if (line.startsWith('data:')) {
+          try {
+            // Extract the JSON part
+            const jsonStr = line.substring(5).trim();
+            const data = JSON.parse(jsonStr);
+            
+            // If it's a token, add it to the extracted text
+            if (data.type === 'token' && data.data) {
+              extractedText += data.data;
+            }
+          } catch (e) {
+            // If JSON parsing fails, just ignore this line
+            console.warn('Failed to parse JSON in stream data line:', line);
+          }
+        } else {
+          // If it's not in SSE format, it's likely already parsed content
+          extractedText = streamData;
+          break;
+        }
+      }
+      
+      // Determine which text to process (either parsed or original)
+      let textToProcess = extractedText.trim() || streamData.trim();
+      
+      // Remove common prefixes
+      return removeCommonPrefixes(textToProcess);
+    } catch (error) {
+      console.error('Error parsing streaming response locally:', error);
+      
+      // Even if parsing fails, try to remove common prefixes
+      return removeCommonPrefixes(streamData.trim());
+    }
+  }
 
   if (isUserLoading || isLoading) {
     return (
@@ -482,6 +632,7 @@ export default function NotebookDetailPage() {
           setCurrentChatSession={setCurrentChatSession}
           handleFileUpload={handleFileUpload}
           notebookName={notebook.title}
+          uploadingFiles={uploadingFiles}
         />
         
         {/* Main Content - Chat */}

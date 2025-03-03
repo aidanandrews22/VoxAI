@@ -217,27 +217,51 @@ class ExcelProcessor(SpreadsheetProcessor):
             excel_file = io.BytesIO(file_content)
             xl = pd.ExcelFile(excel_file, engine=engine)
             
-            # Extract sheet information
+            # Extract limited sheet information to prevent metadata size issues
+            MAX_SHEETS = 10  # Limit the number of sheets to analyze
+            MAX_ROWS_SAMPLE = 100  # Limit row analysis to first N rows
+            
+            sheet_names = xl.sheet_names[:MAX_SHEETS]
             sheet_info = []
             
-            for sheet_name in xl.sheet_names:
-                df = pd.read_excel(excel_file, sheet_name=sheet_name, engine=engine)
+            for sheet_name in sheet_names:
+                # Only read a sample of rows to avoid large metadata
+                df = pd.read_excel(excel_file, sheet_name=sheet_name, engine=engine, nrows=MAX_ROWS_SAMPLE)
+                
+                # Calculate row count differently to get total count
+                if engine == 'openpyxl':
+                    try:
+                        from openpyxl import load_workbook
+                        with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
+                            temp_file.write(file_content)
+                            temp_file.flush()
+                            wb = load_workbook(temp_file.name, read_only=True)
+                            sheet = wb[sheet_name]
+                            row_count = sheet.max_row
+                            os.unlink(temp_file.name)
+                    except Exception as e:
+                        logger.error(f"Error getting exact row count: {e}")
+                        row_count = len(df)
+                else:
+                    row_count = len(df)
                 
                 sheet_info.append({
                     'name': sheet_name,
-                    'row_count': len(df),
+                    'row_count': row_count,
                     'column_count': len(df.columns),
+                    # Only include column names, not full data types which can be large
+                    'column_names': df.columns.tolist()[:30]  # Limit to first 30 columns
                 })
                 
                 excel_file.seek(0)  # Reset file pointer for next sheet
             
             metadata = {
                 'sheet_count': len(xl.sheet_names),
-                'sheet_names': xl.sheet_names,
+                'sheet_names': sheet_names,
                 'sheets': sheet_info
             }
             
-            # If using openpyxl, try to extract document properties
+            # If using openpyxl, try to extract document properties (basic ones only)
             if engine == 'openpyxl':
                 # Temporary file required for accessing document properties
                 with tempfile.NamedTemporaryFile(delete=False, suffix='.xlsx') as temp_file:
@@ -260,10 +284,6 @@ class ExcelProcessor(SpreadsheetProcessor):
                             doc_props['created'] = props.created.isoformat()
                         if props.modified:
                             doc_props['modified'] = props.modified.isoformat()
-                        if props.subject:
-                            doc_props['subject'] = props.subject
-                        if props.keywords:
-                            doc_props['keywords'] = props.keywords
                     
                     if doc_props:
                         metadata['properties'] = doc_props

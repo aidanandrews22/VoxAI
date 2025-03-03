@@ -88,7 +88,7 @@ class FileProcessorFactory:
         elif file_type in ["text/csv"]:
             from app.services.file_processors.spreadsheet_processor import CSVProcessor
             return CSVProcessor()
-        elif file_type in ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"]:
+        elif file_type in ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "application/vnd.ms-excel"]:
             from app.services.file_processors.spreadsheet_processor import ExcelProcessor
             return ExcelProcessor()
             

@@ -15,11 +15,29 @@ import SignUpPage from "./pages/auth/SignUp";
 import NotebooksPage from "./pages/notebooks/Notebooks";
 import NotebookDetailPage from "./pages/notebooks/NotebookDetail";
 import { UserProvider } from "./contexts/UserContext";
+import { Toaster } from 'react-hot-toast';
 
 export default function App() {
   return (
     <UserProvider>
       <Router>
+        <Toaster position="top-center" toastOptions={{
+          // Styling for toast notifications
+          style: {
+            background: '#ffffff',
+            color: '#000000',
+            border: '1px solid #000000',
+          },
+          // Default toast durations
+          duration: 3000,
+          // Custom toast type styling
+          success: {
+            duration: 3000,
+          },
+          error: {
+            duration: 4000,
+          },
+        }} />
         <Routes>
           <Route
             path="/sign-in"

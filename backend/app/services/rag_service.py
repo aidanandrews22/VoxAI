@@ -2,11 +2,11 @@
 RAG service module for retrieval augmented generation.
 """
 import time
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, AsyncGenerator
 
 from app.core.logging import logger
-from app.services.embedding_service import embedding_service
 from app.services.llm_service import llm_service
+from app.db.pinecone import pinecone_client
 
 
 class RAGService:
@@ -23,7 +23,7 @@ class RAGService:
         optimize_query: bool = True
     ) -> List[Dict[str, Any]]:
         """
-        Retrieves context documents for a query.
+        Retrieves context documents for a query using direct text-based search.
         
         Args:
             query: The user query.
@@ -36,15 +36,32 @@ class RAGService:
             List[Dict[str, Any]]: The retrieved context documents.
         """
         try:
+            # Check if query is already a formatted stream
+            if query.strip().startswith('data:'):
+                optimize_query = False
+                
             # Optimize the query if requested
             search_query = query
             if optimize_query:
-                search_query = await llm_service.optimize_query(query)
-                logger.info(f"Optimized query: '{query}' -> '{search_query}'")
+                try:
+                    logger.info(f"DEBUG - About to optimize query: '{query}'")
+                    optimized = await llm_service.optimize_query(query)
+                    logger.info(f"DEBUG - Raw optimized query: '{optimized}'")
+                    
+                    # Only use the optimized query if it's a valid string and not empty
+                    if isinstance(optimized, str) and optimized.strip():
+                        search_query = optimized
+                        logger.info(f"Optimized query: '{query}' -> '{search_query}'")
+                    else:
+                        logger.warning(f"Optimization returned invalid result, using original query")
+                except Exception as e:
+                    logger.error(f"Error during query optimization: {e}")
+                    # Continue with the original query if optimization fails
             
-            # Search for similar documents
-            results = await embedding_service.search_similar(
-                query=search_query,
+            # Search directly using text-based search (no embedding generation needed)
+            logger.info(f"DEBUG - Searching with query: '{search_query}'")
+            results = await pinecone_client.search_records(
+                query_text=search_query,
                 top_k=top_k,
                 namespace=namespace,
                 filter=filter
@@ -62,7 +79,7 @@ class RAGService:
         context: List[Dict[str, Any]], 
         model_name: str = "gemini",
         stream: bool = False
-    ) -> Union[str, Any]:
+    ) -> Union[str, AsyncGenerator[str, None]]:
         """
         Generates an answer to a query using the retrieved context.
         
@@ -73,18 +90,27 @@ class RAGService:
             stream: Whether to stream the response.
             
         Returns:
-            Union[str, Any]: The generated answer or a stream of tokens.
+            Union[str, AsyncGenerator[str, None]]: The generated answer or a stream of tokens.
         """
         try:
-            return await llm_service.generate_answer(
+            # Always await the call to llm_service.generate_answer
+            # For streaming mode, this should return an async generator
+            # For non-streaming mode, this should return a string
+            logger.info(f"DEBUG - RAG generate_answer called with stream={stream}, model={model_name}")
+            
+            result = await llm_service.generate_answer(
                 query=query,
                 context=context,
                 model_name=model_name,
                 stream=stream
             )
+            
+            logger.info(f"DEBUG - RAG generate_answer result: {result}")
+            return result
         except Exception as e:
             logger.error(f"Error generating answer: {e}")
             raise
+
 
     @staticmethod
     async def query(

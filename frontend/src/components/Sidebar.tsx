@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   getUserFoldersHierarchy, 
@@ -8,6 +8,7 @@ import {
 } from '../services/folderService';
 import { getUnorganizedNotebooks } from '../services/folderService';
 import type { Folder, Notebook, NotebookFile, ChatSession } from '../services/supabase';
+import { saveToggledFiles, getToggledFiles } from '../services/userService';
 
 // Custom hook to detect if screen is mobile
 const useMediaQuery = (query: string) => {
@@ -28,6 +29,19 @@ const useMediaQuery = (query: string) => {
   return matches;
 };
 
+// Create a more persistent storage mechanism for checked files
+// This variable will be replaced by userService functions
+let currentCheckedFiles: Set<string> = new Set();
+
+export const getCheckedFiles = (): string[] => {
+  return Array.from(currentCheckedFiles);
+};
+
+// Extended NotebookFile type to include processing status
+interface ExtendedNotebookFile extends NotebookFile {
+  isProcessing?: boolean;
+}
+
 interface SidebarProps {
   // Core/Folder navigation props
   userId: string;
@@ -41,7 +55,7 @@ interface SidebarProps {
   mode?: 'folders' | 'notebook';
   activeTab?: 'files' | 'chats';
   setActiveTab?: (tab: 'files' | 'chats') => void;
-  files?: NotebookFile[];
+  files?: ExtendedNotebookFile[];
   chatSessions?: ChatSession[];
   isLoadingFiles?: boolean;
   currentChatSession?: ChatSession | null;
@@ -52,6 +66,7 @@ interface SidebarProps {
   setCurrentChatSession?: (session: ChatSession) => void;
   handleFileUpload?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   notebookName?: string;
+  uploadingFiles?: Set<string>; // Add uploadingFiles prop
 }
 
 const Sidebar = ({ 
@@ -75,7 +90,8 @@ const Sidebar = ({
   confirmDeleteSession,
   setCurrentChatSession,
   handleFileUpload,
-  notebookName = ''
+  notebookName = '',
+  uploadingFiles = new Set()
 }: SidebarProps) => {
   // Add state to track hover on collapsed sidebar
   const [isHoveringCollapsed, setIsHoveringCollapsed] = useState(false);
@@ -122,7 +138,11 @@ const Sidebar = ({
   const [error, setError] = useState<string | null>(null);
   const [folderToDelete, setFolderToDelete] = useState<{id: string, isParent: boolean} | null>(null);
   const [allFoldersList, setAllFoldersList] = useState<Folder[]>([]);
-  // Add state to track checked files
+  // Track if the component has loaded toggled files from server to prevent
+  // overwriting server state with empty state during initial render
+  const [hasLoadedToggledFiles, setHasLoadedToggledFiles] = useState(false);
+  
+  // State for checked files - keep local component state for rendering
   const [checkedFiles, setCheckedFiles] = useState<Set<string>>(new Set());
   
   // Add file input ref for notebook mode
@@ -184,14 +204,92 @@ const Sidebar = ({
     loadData();
   }, [userId]);
 
-  // Initialize all files as checked by default
+  // Effect to load toggled files from server on mount
   useEffect(() => {
-    if (files.length > 0) {
-      const newCheckedFiles = new Set<string>();
-      files.forEach(file => newCheckedFiles.add(file.id));
-      setCheckedFiles(newCheckedFiles);
+    const loadToggledFiles = async () => {
+      if (userId) {
+        try {
+          const toggledFilesArray = await getToggledFiles(userId);
+          if (toggledFilesArray.length > 0) {
+            const newCheckedFiles = new Set(toggledFilesArray);
+            setCheckedFiles(newCheckedFiles);
+            currentCheckedFiles = newCheckedFiles; // Update global variable
+            console.log('Loaded toggled files from server:', toggledFilesArray);
+          }
+          setHasLoadedToggledFiles(true);
+        } catch (error) {
+          console.error('Error loading toggled files:', error);
+          setHasLoadedToggledFiles(true);
+        }
+      }
+    };
+
+    loadToggledFiles();
+  }, [userId]);
+
+  // Debounce timer ref
+  const saveToggledFilesTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Debounced function to save toggled files
+  const debouncedSaveToggledFiles = useCallback(async (toggledFilesArray: string[]) => {
+    if (saveToggledFilesTimerRef.current) {
+      clearTimeout(saveToggledFilesTimerRef.current);
     }
-  }, [files]);
+    
+    saveToggledFilesTimerRef.current = setTimeout(async () => {
+      try {
+        await saveToggledFiles(userId, toggledFilesArray);
+        console.log('Saved toggled files to server:', toggledFilesArray);
+      } catch (error) {
+        console.error('Error saving toggled files:', error);
+      }
+      saveToggledFilesTimerRef.current = null;
+    }, 1000); // 1 second debounce
+  }, [userId]);
+
+  // Effect to persist checked files to server when they change with debouncing
+  useEffect(() => {
+    if (userId && hasLoadedToggledFiles) {
+      const toggledFilesArray = Array.from(checkedFiles);
+      debouncedSaveToggledFiles(toggledFilesArray);
+    }
+    
+    // Clean up timer on unmount
+    return () => {
+      if (saveToggledFilesTimerRef.current) {
+        clearTimeout(saveToggledFilesTimerRef.current);
+      }
+    };
+  }, [checkedFiles, userId, hasLoadedToggledFiles, debouncedSaveToggledFiles]);
+
+  // Effect to handle new files that aren't in the saved toggled state
+  useEffect(() => {
+    if (hasLoadedToggledFiles && files.length > 0) {
+      setCheckedFiles(prevCheckedFiles => {
+        // If we already have checked files, don't auto-check new ones
+        if (prevCheckedFiles.size > 0) {
+          return prevCheckedFiles;
+        }
+        
+        // Otherwise, check all non-processing files by default (first-time behavior)
+        const newCheckedFiles = new Set<string>(prevCheckedFiles);
+        files.forEach(file => {
+          if (!file.isProcessing && !newCheckedFiles.has(file.id)) {
+            newCheckedFiles.add(file.id);
+          }
+        });
+        
+        // Only update if we've added new files
+        if (newCheckedFiles.size > prevCheckedFiles.size) {
+          // Update the global reference
+          currentCheckedFiles = newCheckedFiles;
+          return newCheckedFiles;
+        }
+        
+        return prevCheckedFiles;
+      });
+    }
+  }, [files, hasLoadedToggledFiles]);
 
   const handleToggleFolder = (folderId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -339,9 +437,16 @@ const Sidebar = ({
     setFolderToDelete(null);
   };
 
-  // Toggle file checked state
+  // Update the toggleFileChecked function to use this persistent storage
   const toggleFileChecked = (fileId: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    
+    // Find the file
+    const file = files.find(f => f.id === fileId);
+    
+    // Don't toggle processing files
+    if (file?.isProcessing) return;
+    
     setCheckedFiles(prev => {
       const newSet = new Set(prev);
       if (newSet.has(fileId)) {
@@ -349,6 +454,8 @@ const Sidebar = ({
       } else {
         newSet.add(fileId);
       }
+      // Update the global reference for the getCheckedFiles function
+      currentCheckedFiles = newSet;
       return newSet;
     });
   };
@@ -462,6 +569,19 @@ const Sidebar = ({
       </div>
     );
   };
+
+  const getFileSize = (size: number) => {
+    if (size < 1024) {
+      return `${size} bytes`;
+    } else if (size < 1024 * 1024) {
+      return `${(size / 1024).toFixed(2)} KB`;
+    } else if (size < 1024 * 1024 * 1024) {
+      return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+    } else {
+      return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    }
+  }
+  
 
   return (
     <>
@@ -1017,17 +1137,34 @@ const Sidebar = ({
                         onChange={handleFileUpload}
                         className="hidden"
                         id="file-upload"
+                        disabled={uploadingFiles.size > 0}
                       />
                       <label
                         htmlFor="file-upload"
                         className={`cursor-pointer flex flex-col items-center justify-center w-full ${
                           isMobile ? 'h-28' : 'h-24'
-                        } border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg hover:border-gray-400 dark:hover:border-gray-500  transition-all duration-200 active:scale-[0.98]`}
+                        } border-2 border-dashed ${
+                          uploadingFiles.size > 0 
+                            ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 cursor-wait' 
+                            : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500 cursor-pointer active:scale-[0.98]'
+                        } rounded-lg transition-all duration-200`}
                       >
-                        <svg xmlns="http://www.w3.org/2000/svg" className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} text-gray-500 dark:text-gray-400 mb-2 transition-transform duration-200 group-hover:scale-110`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        <span className={`${isMobile ? 'text-base' : 'text-sm'} text-gray-500 dark:text-gray-400`}>Upload File</span>
+                        {uploadingFiles.size > 0 ? (
+                          <>
+                            <svg className="animate-spin h-8 w-8 text-blue-500 dark:text-blue-400 mb-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span className={`${isMobile ? 'text-base' : 'text-sm'} text-blue-500 dark:text-blue-400`}>Uploading to Supabase...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className={`${isMobile ? 'h-10 w-10' : 'h-8 w-8'} text-gray-500 dark:text-gray-400 mb-2 transition-transform duration-200 group-hover:scale-110`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            <span className={`${isMobile ? 'text-base' : 'text-sm'} text-gray-500 dark:text-gray-400`}>Upload File</span>
+                          </>
+                        )}
                       </label>
                     </div>
                     
@@ -1065,30 +1202,50 @@ const Sidebar = ({
                           {files.map((file) => (
                             <li 
                               key={file.id} 
-                              className={`p-2 hover:bg-hover rounded cursor-pointer transition-all duration-200 ${
+                              className={`p-2 hover:bg-hover rounded transition-all duration-200 ${
                                 isMobile ? 'p-3' : 'p-2'
-                              }`}
+                              } ${file.isProcessing ? 'bg-blue-50 dark:bg-blue-900/10' : ''}`}
                             >
                               <div className="flex justify-between items-start">
                                 <div 
-                                  className="flex-1 truncate"
-                                  onClick={(e) => toggleFileChecked(file.id, e)}
+                                  className={`flex-1 truncate ${
+                                    file.isProcessing ? '' : 'cursor-pointer'
+                                  }`}
+                                  onClick={(e) => !file.isProcessing && toggleFileChecked(file.id, e)}
                                 >
-                                  <p className={`text-sm font-medium truncate ${
-                                    checkedFiles.has(file.id) 
-                                      ? 'text-adaptive' 
-                                      : 'text-gray-500 dark:text-gray-400 line-through'
-                                  }`}>
-                                    {file.file_name}
-                                  </p>
-                                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                                    {(file.file_size / 1024).toFixed(2)} KB
-                                  </p>
+                                  <div className="flex items-center">
+                                    {file.isProcessing && (
+                                      <span className="mr-2 flex-shrink-0">
+                                        <svg className="animate-spin h-3 w-3 text-blue-500 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                      </span>
+                                    )}
+                                    <p className={`text-sm font-medium truncate ${
+                                      file.isProcessing 
+                                        ? 'text-blue-600 dark:text-blue-400' 
+                                        : checkedFiles.has(file.id) 
+                                          ? 'text-adaptive' 
+                                          : 'text-gray-500 dark:text-gray-400 line-through'
+                                    }`}>
+                                      {file.file_name}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                                    <span>{getFileSize(file.file_size)}</span>
+                                    {file.isProcessing && (
+                                      <span className="ml-2 text-xs text-blue-500 dark:text-blue-400">AI Processing...</span>
+                                    )}
+                                  </div>
                                 </div>
                                 <button
                                   onClick={() => handleDeleteFile?.(file.id)}
-                                  className="text-red-500 hover:text-red-700 transition-colors duration-200 p-1"
+                                  className={`text-red-500 hover:text-red-700 transition-colors duration-200 p-1 ${
+                                    file.isProcessing ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                                  }`}
                                   aria-label="Delete file"
+                                  disabled={file.isProcessing}
                                 >
                                   <svg 
                                     xmlns="http://www.w3.org/2000/svg" 

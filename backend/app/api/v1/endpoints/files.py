@@ -18,6 +18,7 @@ from app.schemas.file import (
 from app.services.embedding_service import embedding_service
 from app.services.file_service import file_service
 from app.services.llm_service import llm_service
+from app.services.file_processors import FileProcessorFactory
 
 router = APIRouter()
 
@@ -25,7 +26,6 @@ router = APIRouter()
 @router.post("/ingest", response_model=FileIngestResponse)
 async def ingest_file(
     request: FileIngestRequest,
-    background_tasks: BackgroundTasks,
 ) -> FileIngestResponse:
     """
     Ingests a file for processing and indexing.
@@ -38,7 +38,6 @@ async def ingest_file(
     
     Args:
         request: The file ingestion request.
-        background_tasks: FastAPI background tasks.
         
     Returns:
         FileIngestResponse: The ingestion response.
@@ -62,29 +61,43 @@ async def ingest_file(
                 message="File already processed"
             )
         
-        # Extract file content
+        # Fetch raw file content
         try:
-            # Extract text content based on file type
-            file_content = await file_service.get_file_text_content(
-                notebook_file.file_path, notebook_file.file_type
-            )
-            
-            # Extract metadata
-            file_metadata = await file_service.get_file_metadata_content(
-                notebook_file.file_path, notebook_file.file_type
-            )
+            file_content = await file_service.fetch_file_content(notebook_file.file_path)
         except Exception as e:
-            logger.error(f"Error extracting content from file: {e}")
+            logger.error(f"Error fetching file content: {e}")
             raise HTTPException(
                 status_code=500, 
-                detail=f"Error extracting content from file: {str(e)}"
+                detail=f"Error fetching file content: {str(e)}"
+            )
+            
+        # Get the appropriate processor based on file type
+        try:
+            processor = FileProcessorFactory.get_processor(notebook_file.file_type)
+            
+            # Process file content
+            text_content = await processor.process(file_content, notebook_file.file_path)
+            
+            # Extract metadata
+            file_metadata = await processor.get_metadata(file_content, notebook_file.file_path)
+        except ValueError as e:
+            logger.error(f"Unsupported file type: {e}")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Unsupported file type: {str(e)}"
+            )
+        except Exception as e:
+            logger.error(f"Error processing file: {e}")
+            raise HTTPException(
+                status_code=500, 
+                detail=f"Error processing file: {str(e)}"
             )
         
         # Generate description using LLM if not already extracted
         llm_result = {}
         if not file_metadata.get("description"):
             llm_result = await llm_service.generate_file_description(
-                file_content=file_content,
+                file_content=text_content,
                 file_name=notebook_file.file_name,
                 file_type=notebook_file.file_type
             )
@@ -109,20 +122,25 @@ async def ingest_file(
                 metadata=llm_result.get("metadata", {})
             )
         
-        # Process file content in the background
-        background_tasks.add_task(
-            _process_file_content,
+        # Process file content immediately instead of background task
+        pinecone_id = await embedding_service.process_file_content(
             file_id=file_id,
             file_path=notebook_file.file_path,
-            content=file_content,
+            content=text_content,
             source=notebook_file.file_name,
-            metadata_id=metadata.id
+            namespace=""
+        )
+        
+        # Update file metadata with Pinecone ID
+        metadata = await file_service.update_file_metadata(
+            id=metadata.id,
+            pinecone_id=pinecone_id
         )
         
         return FileIngestResponse(
             success=True,
             metadata=FileMetadataResponse(**metadata.to_dict()),
-            message="File ingestion started"
+            message="File ingestion completed"
         )
     except HTTPException:
         raise
@@ -176,14 +194,6 @@ async def delete_file_vectors(
     try:
         # Delete vectors from Pinecone
         response = await embedding_service.delete_file_vectors(str(file_id), namespace)
-        
-        # Update file metadata to remove Pinecone ID
-        metadata = await file_service.get_file_metadata(str(file_id))
-        if metadata:
-            await file_service.update_file_metadata(
-                id=metadata.id,
-                pinecone_id=None
-            )
         
         return {
             "success": True,

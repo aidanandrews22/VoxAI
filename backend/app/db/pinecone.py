@@ -80,10 +80,28 @@ class PineconeClient:
         """
         try:
             # Convert the list of tuples to the format expected by Pinecone
-            vectors_to_upsert = [
-                {"id": id, "values": vector, "metadata": metadata}
-                for id, vector, metadata in vectors
-            ]
+            vectors_to_upsert = []
+            skipped_vectors = 0
+            
+            # Pinecone metadata limit is 40KB (40960 bytes)
+            MAX_METADATA_BYTES = 40960
+            
+            for id, vector, metadata in vectors:
+                # Check metadata size
+                import json
+                metadata_json = json.dumps(metadata)
+                metadata_size = len(metadata_json.encode('utf-8'))
+                
+                if metadata_size > MAX_METADATA_BYTES:
+                    logger.warning(f"Skipping vector {id} due to metadata size {metadata_size} bytes exceeding limit of {MAX_METADATA_BYTES} bytes")
+                    skipped_vectors += 1
+                    continue
+                
+                vectors_to_upsert.append({"id": id, "values": vector, "metadata": metadata})
+            
+            if not vectors_to_upsert:
+                logger.warning("No vectors to upsert after size filtering")
+                return {"upserted_count": 0, "skipped_count": skipped_vectors, "results": []}
             
             # Batch upsert in chunks of 100 (Pinecone's recommendation)
             chunk_size = 100
@@ -94,8 +112,8 @@ class PineconeClient:
                 response = self.index.upsert(vectors=chunk, namespace=namespace)
                 results.append(response)
             
-            logger.info(f"Upserted {len(vectors_to_upsert)} vectors to Pinecone")
-            return {"upserted_count": len(vectors_to_upsert), "results": results}
+            logger.info(f"Upserted {len(vectors_to_upsert)} vectors to Pinecone (skipped {skipped_vectors} due to size limits)")
+            return {"upserted_count": len(vectors_to_upsert), "skipped_count": skipped_vectors, "results": results}
         except Exception as e:
             logger.error(f"Error upserting vectors to Pinecone: {e}")
             raise
@@ -119,6 +137,37 @@ class PineconeClient:
             logger.error(f"Error deleting vectors from Pinecone: {e}")
             raise
 
+    async def create_id_filter(self, ids: List[str]) -> Dict[str, Any]:
+        """
+        Creates a proper ID filter for Pinecone query.
+        
+        Args:
+            ids: List of vector IDs to filter by
+            
+        Returns:
+            Dict[str, Any]: The filter dictionary properly formatted for Pinecone.
+        """
+        # Ensure ids is a simple list of strings, not nested
+        flat_ids = []
+        for id_val in ids:
+            if isinstance(id_val, list):
+                # Recursively flatten nested lists
+                for nested_id in id_val:
+                    if isinstance(nested_id, list):
+                        flat_ids.extend(nested_id)
+                    else:
+                        flat_ids.append(nested_id)
+            else:
+                flat_ids.append(id_val)
+        
+        # Additional validation to ensure all IDs are strings
+        validated_ids = [str(id_val) for id_val in flat_ids if id_val]
+        
+        # Create the filter with the proper structure
+        filter_dict = {"id": {"$in": validated_ids}}
+        logger.info(f"Created ID filter with {len(validated_ids)} IDs: {filter_dict}")
+        return filter_dict
+
     async def query_vectors(
         self, 
         query_vector: List[float], 
@@ -139,6 +188,10 @@ class PineconeClient:
             List[Dict[str, Any]]: The query results.
         """
         try:
+            # Debug output of the filter
+            if filter:
+                logger.info(f"Querying with filter: {filter}")
+            
             response = self.index.query(
                 vector=query_vector,
                 top_k=top_k,
@@ -146,6 +199,7 @@ class PineconeClient:
                 filter=filter,
                 include_metadata=True
             )
+            logger.info(f"DEBUG - Pinecone query response: {response}")
             return response.get("matches", [])
         except Exception as e:
             logger.error(f"Error querying vectors from Pinecone: {e}")
@@ -172,6 +226,71 @@ class PineconeClient:
             return vector_ids
         except Exception as e:
             logger.error(f"Error listing vectors from Pinecone: {e}")
+            raise
+
+    async def search_records(
+        self, 
+        query_text: str, 
+        top_k: int = 5, 
+        namespace: str = "",
+        filter: Optional[Dict[str, Any]] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Performs a text-based search against the Pinecone index using search_records.
+        This directly searches using the text without requiring external embedding generation.
+        
+        Args:
+            query_text: The text query
+            top_k: Number of results to return
+            namespace: The namespace to search in
+            filter: Optional filter to apply
+            
+        Returns:
+            List[Dict[str, Any]]: The search results.
+        """
+        try:
+            # Debug output of the filter
+            if filter:
+                logger.info(f"Searching records with filter: {filter}")
+            
+            logger.info(f"Performing text search with query: '{query_text}'")
+            
+            # Construct the search query according to Pinecone's search_records format
+            search_query = {
+                "inputs": {"text": query_text},
+                "top_k": top_k
+            }
+            
+            # Add filter if provided
+            if filter:
+                search_query["filter"] = filter
+                
+            response = self.index.search_records(
+                namespace=namespace,
+                query=search_query
+            )
+            
+            logger.info(f"DEBUG - Pinecone search_records response: {response}")
+            
+            # Process the results to match the expected format
+            # The response contains 'result' with 'hits' instead of 'matches'
+            hits = response.get("result", {}).get("hits", [])
+            
+            # Transform to match the previous return format for compatibility
+            transformed_results = []
+            for hit in hits:
+                # Process each hit to a compatible format
+                result = {
+                    "id": hit.get("_id"),
+                    "score": hit.get("_score"),
+                    "metadata": hit.get("fields", {})
+                }
+                transformed_results.append(result)
+                
+            logger.info(f"Search returned {len(transformed_results)} results")
+            return transformed_results
+        except Exception as e:
+            logger.error(f"Error searching records in Pinecone: {e}")
             raise
 
 

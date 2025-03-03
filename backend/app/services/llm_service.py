@@ -34,7 +34,10 @@ class LLMService:
         
         # Initialize Gemini client
         genai.configure(api_key=settings.GEMINI_API_KEY)
+        # Default model, but we'll create specific models as needed
         self.gemini_model = genai.GenerativeModel('gemini-1.5-flash-8b')
+        # Keep a cache of model instances
+        self.gemini_models = {'gemini-1.5-flash-8b': self.gemini_model}
         
         # Keep httpx clients for any custom requests
         self.http_client = httpx.AsyncClient(timeout=60.0)
@@ -130,6 +133,14 @@ class LLMService:
             str: The optimized query.
         """
         try:
+            # Debug info about the input query
+            logger.info(f"DEBUG - optimize_query input: '{query}'")
+            
+            # If the query already contains streaming data, don't try to optimize it
+            if query.strip().startswith('data:'):
+                logger.info(f"DEBUG - Query appears to contain streaming data, returning original query")
+                return query
+                
             prompt = f"""
             You are helping to optimize a search query for a retrieval system. Your task is to rewrite the query to make it more effective for semantic search.
             
@@ -149,6 +160,8 @@ class LLMService:
                 self.gemini_model.generate_content,
                 prompt
             )
+            
+            logger.info(f"DEBUG - Gemini response text: '{response.text.strip()}'")
             
             return response.text.strip()
         except Exception as e:
@@ -175,57 +188,158 @@ class LLMService:
         Returns:
             Union[str, AsyncGenerator[str, None]]: The generated answer or a stream of tokens.
         """
-        # Format context for the prompt
-        formatted_context = "\n\n".join([
-            f"Source {i+1}: {doc.get('source', 'Unknown')}\n{doc.get('text', '')}"
-            for i, doc in enumerate(context)
-        ])
-        
-        prompt = f"""
-        You are an AI assistant helping to answer questions based on the provided context.
-        
-        Question: {query}
-        
-        Context:
-        {formatted_context}
-        
-        Please provide a comprehensive answer based on the context provided. If the context doesn't contain enough information to answer the question fully, acknowledge the limitations of the available information.
-        
-        Answer:
-        """
-        
-        if model_name.lower() == "gemini":
-            if stream:
-                return self._stream_gemini(prompt)
+        try:
+            logger.info(f"DEBUG - Generate answer with model={model_name}, stream={stream}")
+            logger.info(f"DEBUG - Received {len(context)} context documents")
+            
+            # Format context for the prompt
+            formatted_context_parts = []
+            
+            for i, doc in enumerate(context):
+                # Extract filename from file_path (removing path)
+                file_path = doc.get("file_path", "Unknown")
+                filename = file_path.split("/")[-1] if "/" in file_path else file_path
+                
+                # Get description and metadata
+                description = doc.get("metadata", {}).get("description", "No description available")
+                file_metadata = doc.get("metadata", {}).get("file_metadata", {})
+                
+                # Log the document information
+                logger.info(f"DEBUG - Formatting document {i+1}: {filename}")
+                logger.info(f"DEBUG - Document description: {description}")
+                logger.info(f"DEBUG - Document metadata: {file_metadata}")
+                logger.info(f"DEBUG - Document text length: {len(doc.get('text', ''))}")
+                
+                # Format metadata as key-value pairs if it exists
+                metadata_str = ""
+                if file_metadata:
+                    metadata_items = []
+                    for key, value in file_metadata.items():
+                        if isinstance(value, dict):
+                            # For nested dictionaries, format them as a string
+                            nested_items = [f"{k}: {v}" for k, v in value.items()]
+                            metadata_items.append(f"{key}: {{{', '.join(nested_items)}}}")
+                        elif isinstance(value, list):
+                            # For lists, format them as a string
+                            metadata_items.append(f"{key}: [{', '.join(map(str, value))}]")
+                        else:
+                            # For simple values
+                            metadata_items.append(f"{key}: {value}")
+                    
+                    if metadata_items:
+                        metadata_str = f"\nMetadata: {{{', '.join(metadata_items)}}}"
+                
+                # Format this document with clear section headers
+                formatted_doc = f"""
+File #{i+1}: {filename}
+Description: {description}{metadata_str}
+Content:
+{doc.get('text', 'No content available')}
+"""
+                formatted_context_parts.append(formatted_doc)
+            
+            # Join all formatted documents
+            formatted_context = "\n" + "\n".join(formatted_context_parts)
+            
+            # Log the total formatted context length
+            logger.info(f"DEBUG - Total formatted context length: {len(formatted_context)} characters")
+            
+            prompt = f"""
+            You are an AI assistant helping to answer questions based on the provided context.
+            
+            Question: {query}
+            
+            Context (information from various files is provided below):
+            {formatted_context}
+            
+            Please provide a comprehensive answer based on the context provided. If the context doesn't contain enough information to answer the question fully, acknowledge the limitations of the available information.
+            
+            When referencing information from the files, refer to them by their filenames (e.g., "According to document.pdf...").
+            
+            Answer:
+            """
+            
+            # Log the total prompt length
+            logger.info(f"DEBUG - Total prompt length: {len(prompt)} characters")
+            
+            result = None
+            
+            # Check if model name starts with "gemini" (to handle model versions like "gemini-1.5-flash-8b")
+            if model_name.lower().startswith("gemini"):
+                if stream:
+                    logger.info("DEBUG - Using Gemini streaming")
+                    result = await self._stream_gemini(prompt, model_name)
+                else:
+                    logger.info("DEBUG - Using Gemini non-streaming")
+                    result = await self._call_gemini(prompt, model_name)
+            elif model_name.lower() == "anthropic":
+                if stream:
+                    logger.info("DEBUG - Using Anthropic streaming")
+                    result = await self._stream_anthropic(prompt)
+                else:
+                    logger.info("DEBUG - Using Anthropic non-streaming")
+                    result = await self._call_anthropic(prompt)
+            elif model_name.lower() == "openai":
+                if stream:
+                    logger.info("DEBUG - Using OpenAI streaming")
+                    result = await self._stream_openai(prompt)
+                else:
+                    logger.info("DEBUG - Using OpenAI non-streaming")
+                    result = await self._call_openai(prompt)
             else:
-                return await self._call_gemini(prompt)
-        elif model_name.lower() == "anthropic":
-            if stream:
-                return self._stream_anthropic(prompt)
-            else:
-                return await self._call_anthropic(prompt)
-        elif model_name.lower() == "openai":
-            if stream:
-                return self._stream_openai(prompt)
-            else:
-                return await self._call_openai(prompt)
-        else:
-            raise ValueError(f"Unsupported model: {model_name}")
+                raise ValueError(f"Unsupported model: {model_name}")
+                
+            logger.info(f"DEBUG - Result type from generate_answer: {type(result)}")
+            return result
+        except Exception as e:
+            logger.error(f"Error in generate_answer: {e}")
+            raise
 
-    async def _call_gemini(self, prompt: str) -> str:
+    def _get_gemini_model(self, model_name: str) -> Any:
+        """
+        Gets or creates a Gemini model instance for the specified model name.
+        
+        Args:
+            model_name: The name of the model to get or create.
+            
+        Returns:
+            Any: The Gemini model instance.
+        """
+        # Default to gemini-1.5-flash-8b if just "gemini" is specified
+        if model_name.lower() == "gemini":
+            model_name = "gemini-1.5-flash-8b"
+            
+        # Create the model if it doesn't exist in our cache
+        if model_name not in self.gemini_models:
+            logger.info(f"Creating new Gemini model instance for {model_name}")
+            try:
+                self.gemini_models[model_name] = genai.GenerativeModel(model_name)
+            except Exception as e:
+                logger.error(f"Error creating Gemini model {model_name}: {e}")
+                # Fall back to default model
+                logger.info(f"Falling back to default model gemini-1.5-flash-8b")
+                model_name = "gemini-1.5-flash-8b"
+                
+        return self.gemini_models[model_name]
+        
+    async def _call_gemini(self, prompt: str, model_name: str = "gemini") -> str:
         """
         Calls the Gemini API to generate a response.
         
         Args:
             prompt: The prompt to send to the model.
+            model_name: The name of the model to use.
             
         Returns:
             str: The generated response.
         """
         try:
+            # Get the appropriate model instance
+            model = self._get_gemini_model(model_name)
+            
             # Use the official Gemini API client
             response = await asyncio.to_thread(
-                self.gemini_model.generate_content,
+                model.generate_content,
                 prompt,
                 generation_config=genai.types.GenerationConfig(
                     temperature=0.4,
@@ -240,51 +354,67 @@ class LLMService:
             logger.error(f"Error calling Gemini API: {e}")
             raise
 
-    async def _stream_gemini(self, prompt: str) -> AsyncGenerator[str, None]:
+    async def _stream_gemini(self, prompt: str, model_name: str = "gemini") -> AsyncGenerator[str, None]:
         """
         Streams responses from the Gemini API.
         
         Args:
             prompt: The prompt to send to the model.
+            model_name: The name of the model to use.
             
         Yields:
             str: Chunks of the generated response.
         """
         try:
-            # Use the official Gemini API client with streaming
-            response = await asyncio.to_thread(
-                self.gemini_model.generate_content,
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    temperature=0.4,
-                    top_p=0.95,
-                    top_k=40,
-                    max_output_tokens=2048,
-                ),
-                stream=True
-            )
+            # This method should return an async generator, not execute it
+            # Create and return an async generator that will produce chunks on demand
             
-            # Process the streaming response
-            async for chunk in self._process_gemini_stream(response):
-                yield chunk
+            async def stream_generator():
+                # Get the appropriate model instance
+                model = self._get_gemini_model(model_name)
+                logger.info(f"DEBUG - _stream_gemini using model: {model_name}")
+                
+                try:
+                    # Use the official Gemini API client with streaming
+                    response = await asyncio.to_thread(
+                        model.generate_content,
+                        prompt,
+                        generation_config=genai.types.GenerationConfig(
+                            temperature=0.4,
+                            top_p=0.95,
+                            top_k=40,
+                            max_output_tokens=2048,
+                        ),
+                        stream=True
+                    )
+                    
+                    # Process the streaming response
+                    # Handle the response depending on its type
+                    if hasattr(response, '__iter__') and not hasattr(response, '__aiter__'):
+                        # It's a synchronous iterator, not an async iterator
+                        for chunk in response:
+                            if hasattr(chunk, 'text'):
+                                yield chunk.text
+                            await asyncio.sleep(0)  # Allow other tasks to run
+                    else:
+                        # It should be an async iterator
+                        async for chunk in response:
+                            if hasattr(chunk, 'text'):
+                                yield chunk.text
+                            await asyncio.sleep(0)  # Allow other tasks to run
+                    
+                except Exception as e:
+                    logger.error(f"Error in stream_generator: {e}")
+                    yield f"Error: {str(e)}"
+            
+            # Return the generator without awaiting it
+            return stream_generator()
         except Exception as e:
-            logger.error(f"Error streaming from Gemini API: {e}")
-            yield f"\nError: {str(e)}"
-    
-    async def _process_gemini_stream(self, stream) -> AsyncGenerator[str, None]:
-        """
-        Process a Gemini streaming response.
-        
-        Args:
-            stream: The streaming response from Gemini.
-            
-        Yields:
-            str: Text chunks from the stream.
-        """
-        for chunk in stream:
-            if hasattr(chunk, 'text'):
-                yield chunk.text
-            await asyncio.sleep(0)  # Allow other tasks to run
+            logger.error(f"Error setting up Gemini streaming: {e}")
+            # Return a generator that just yields the error
+            async def error_generator():
+                yield f"Error streaming from Gemini API: {str(e)}"
+            return error_generator()
 
     async def _call_anthropic(self, prompt: str) -> str:
         """
@@ -322,34 +452,34 @@ class LLMService:
             str: Chunks of the generated response.
         """
         try:
-            # Use the official Anthropic API client with streaming
-            with self.anthropic_client.messages.stream(
-                model="claude-3-opus-20240229",
-                max_tokens=2048,
-                temperature=0.4,
-                messages=[{"role": "user", "content": prompt}]
-            ) as stream:
-                # Process the streaming response
-                async for chunk in self._process_anthropic_stream(stream):
-                    yield chunk
-        except Exception as e:
-            logger.error(f"Error streaming from Anthropic API: {e}")
-            yield f"\nError: {str(e)}"
-    
-    async def _process_anthropic_stream(self, stream) -> AsyncGenerator[str, None]:
-        """
-        Process an Anthropic streaming response.
-        
-        Args:
-            stream: The streaming response from Anthropic.
+            # This method should return an async generator, not execute it
+            async def stream_generator():
+                try:
+                    # Use the official Anthropic API client with streaming
+                    with self.anthropic_client.messages.stream(
+                        model="claude-3-opus-20240229",
+                        max_tokens=2048,
+                        temperature=0.4,
+                        messages=[{"role": "user", "content": prompt}]
+                    ) as stream:
+                        # Process the streaming response
+                        for chunk in stream:
+                            if chunk.type == "content_block_delta" and hasattr(chunk.delta, "text"):
+                                yield chunk.delta.text
+                            await asyncio.sleep(0)  # Allow other tasks to run
+                    
+                except Exception as e:
+                    logger.error(f"Error in Anthropic stream_generator: {e}")
+                    yield f"\nError: {str(e)}"
             
-        Yields:
-            str: Text chunks from the stream.
-        """
-        for chunk in stream:
-            if chunk.type == "content_block_delta" and hasattr(chunk.delta, "text"):
-                yield chunk.delta.text
-            await asyncio.sleep(0)  # Allow other tasks to run
+            # Return the generator without awaiting it
+            return stream_generator()
+        except Exception as e:
+            logger.error(f"Error setting up Anthropic streaming: {e}")
+            # Return a generator that just yields the error
+            async def error_generator():
+                yield f"Error setting up Anthropic stream: {str(e)}"
+            return error_generator()
 
     async def _call_openai(self, prompt: str) -> str:
         """
@@ -387,38 +517,39 @@ class LLMService:
             str: Chunks of the generated response.
         """
         try:
-            # Use the official OpenAI API client with streaming
-            response = await asyncio.to_thread(
-                self.openai_client.chat.completions.create,
-                model="gpt-4-turbo",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.4,
-                max_tokens=2048,
-                stream=True
-            )
+            # This method should return an async generator, not execute it
+            async def stream_generator():
+                try:
+                    # Use the official OpenAI API client with streaming
+                    response = await asyncio.to_thread(
+                        self.openai_client.chat.completions.create,
+                        model="gpt-4-turbo",
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.4,
+                        max_tokens=2048,
+                        stream=True
+                    )
+                    
+                    # Process the streaming response
+                    for chunk in response:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            content = chunk.choices[0].delta.content
+                            yield content
+                        await asyncio.sleep(0)  # Allow other tasks to run
+                    
+                except Exception as e:
+                    logger.error(f"Error in OpenAI stream_generator: {e}")
+                    yield f"\nError: {str(e)}"
             
-            # Process the streaming response
-            async for chunk in self._process_openai_stream(response):
-                yield chunk
+            # Return the generator without awaiting it
+            return stream_generator()
         except Exception as e:
-            logger.error(f"Error streaming from OpenAI API: {e}")
-            yield f"\nError: {str(e)}"
+            logger.error(f"Error setting up OpenAI streaming: {e}")
+            # Return a generator that just yields the error
+            async def error_generator():
+                yield f"Error setting up OpenAI stream: {str(e)}"
+            return error_generator()
     
-    async def _process_openai_stream(self, stream) -> AsyncGenerator[str, None]:
-        """
-        Process an OpenAI streaming response.
-        
-        Args:
-            stream: The streaming response from OpenAI.
-            
-        Yields:
-            str: Text chunks from the stream.
-        """
-        for chunk in stream:
-            if chunk.choices and chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
-            await asyncio.sleep(0)  # Allow other tasks to run
-
     def _extract_json_from_text(self, text: str) -> str:
         """
         Extracts a JSON object from text that might contain additional content.

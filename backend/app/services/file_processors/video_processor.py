@@ -1,6 +1,9 @@
 """
 Video processor module for extracting content from video files.
 """
+
+### TODO: Add frame extraction and analysis using Gemini for paid users only
+
 import io
 import os
 import tempfile
@@ -320,7 +323,7 @@ class VideoProcessor(FileProcessor):
             
             # Generate content using Gemini
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-1.5-flash-8b",
                 contents=[prompt, image_part]
             )
             

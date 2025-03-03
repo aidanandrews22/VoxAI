@@ -46,21 +46,20 @@ class PresentationProcessor(FileProcessor):
             'file_size': len(file_content),
             'file_extension': os.path.splitext(file_path)[1],
         }
-    
-    async def _extract_text_from_image(self, image: Image.Image) -> str:
+
+    async def _extract_text_and_description_from_image(self, image: Image.Image) -> str:
         """
-        Extract text from an image using Google Vision API.
+        Extract text and generate description from an image using Google Gemini.
         
         Args:
             image: PIL Image object
             
         Returns:
-            str: Extracted text
+            str: Extracted text and generated description
         """
         try:
             from google import genai
             import os
-            from app.core.config import settings
             
             # Initialize the Gemini client
             client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
@@ -74,16 +73,20 @@ class PresentationProcessor(FileProcessor):
             from google.genai import types
             image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
             
-            # Generate content using Gemini
+            combined_prompt = """
+                1. Extract all text visible in this image. If no text is visible, respond with 'No text detected.'
+                2. Provide a detailed description of what's in this image.
+            """
+
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=["Extract all text visible in this image", image_part]
+                model="gemini-1.5-flash-8b",
+                contents=[combined_prompt, image_part]
             )
             
             return response.text
         except Exception as e:
-            logger.error(f"Error extracting text from image: {e}")
-            return ""
+            logger.error(f"Error extracting text and description from image: {e}")
+            return "Error processing image content."
 
 
 class PowerPointProcessor(PresentationProcessor):
@@ -121,17 +124,37 @@ class PowerPointProcessor(PresentationProcessor):
                 slide_text.append(f"Slide {slide_num}")
                 slide_text.append("=" * (len(f"Slide {slide_num}")))
                 
-                # Extract text from shapes
+                # Extract text from shapes with position information
+                shape_contents = []
                 for shape in slide.shapes:
                     if hasattr(shape, "text") and shape.text:
-                        slide_text.append(shape.text)
+                        # Get position information
+                        top = shape.top if hasattr(shape, "top") else 0
+                        shape_contents.append((shape.text, top))
                 
-                # Extract images for OCR
-                image_list = await self._extract_images_from_slide(slide)
-                for img in image_list:
-                    img_text = await self._extract_text_from_image(img)
-                    if img_text:
-                        slide_text.append(f"Image text: {img_text}")
+                # Extract images with position information
+                image_list = await self._extract_images_with_positions(slide)
+                image_contents = []
+                
+                for img, left, top in image_list:
+                    img_content = await self._extract_text_and_description_from_image(img)
+                    if img_content:
+                        image_contents.append((f"[IMAGE CONTENT START]\n{img_content}\n[IMAGE CONTENT END]", top))
+                
+                # Combine all content and sort by vertical position
+                all_contents = shape_contents + image_contents
+                all_contents.sort(key=lambda x: x[1])  # Sort by top position
+                
+                # Extract just the content text after sorting
+                sorted_contents = [content for content, _ in all_contents]
+                
+                # Determine slide content type and organize accordingly
+                if not sorted_contents:
+                    # Empty slide
+                    slide_text.append("[EMPTY SLIDE]")
+                else:
+                    # Add all content in position order
+                    slide_text.extend(sorted_contents)
                 
                 # Create a text summary for this slide
                 if len(slide_text) > 2:  # If we have more than just the header
@@ -183,26 +206,38 @@ class PowerPointProcessor(PresentationProcessor):
             
             # Count shapes by type
             shape_counts = {}
+            total_image_count = 0
             for slide in ppt.slides:
                 for shape in slide.shapes:
                     shape_type = shape.shape_type
                     shape_counts[shape_type] = shape_counts.get(shape_type, 0) + 1
+                    
+                    # Count images specifically
+                    if hasattr(shape, 'image'):
+                        total_image_count += 1
             
             if shape_counts:
                 metadata['shape_counts'] = shape_counts
+            
+            metadata['total_image_count'] = total_image_count
             
             # Extract slide information
             slide_info = []
             for i, slide in enumerate(ppt.slides):
                 text_length = 0
+                image_count = 0
+                
                 for shape in slide.shapes:
                     if hasattr(shape, "text"):
                         text_length += len(shape.text)
+                    if hasattr(shape, 'image'):
+                        image_count += 1
                 
                 slide_info.append({
                     'slide_number': i + 1,
                     'shape_count': len(slide.shapes),
                     'text_length': text_length,
+                    'image_count': image_count
                 })
             
             if slide_info:
@@ -251,4 +286,41 @@ class PowerPointProcessor(PresentationProcessor):
             except Exception as e:
                 logger.error(f"Error processing shape in PowerPoint slide: {e}")
         
-        return images 
+        return images
+
+    async def _extract_images_with_positions(self, slide) -> List[Tuple[Image.Image, float, float]]:
+        """
+        Extract images from a PowerPoint slide along with their positions.
+        
+        Args:
+            slide: python-pptx slide object
+            
+        Returns:
+            List[Tuple[Image.Image, float, float]]: List of tuples containing (image, left, top)
+        """
+        images_with_pos = []
+        
+        for shape in slide.shapes:
+            try:
+                # Check if shape is a picture
+                if hasattr(shape, 'image'):
+                    try:
+                        # Extract the image data
+                        image_bytes = shape.image.blob
+                        img = Image.open(io.BytesIO(image_bytes))
+                        
+                        # Only process images that are big enough to contain meaningful text
+                        if img.width > 100 and img.height > 100:
+                            # Get position information
+                            left = shape.left
+                            top = shape.top
+                            images_with_pos.append((img, left, top))
+                    except Exception as e:
+                        logger.error(f"Error extracting image from PowerPoint slide: {e}")
+            except Exception as e:
+                logger.error(f"Error processing shape in PowerPoint slide: {e}")
+        
+        # Sort by vertical position (top to bottom)
+        images_with_pos.sort(key=lambda x: x[2])
+        
+        return images_with_pos 

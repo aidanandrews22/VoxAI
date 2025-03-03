@@ -1,7 +1,7 @@
 """
 Supabase client module for connecting to Supabase.
 """
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 
 from supabase import Client, create_client
 
@@ -137,6 +137,37 @@ class SupabaseClient:
             return response
         except Exception as e:
             logger.error(f"Error fetching file from storage: {e}")
+            raise
+
+    async def get_user_toggled_files(self, user_id: str) -> List[str]:
+        """
+        Fetches the toggled files for a user from the users table.
+        
+        Args:
+            user_id: The ID of the user.
+            
+        Returns:
+            List[str]: List of pinecone_ids from toggled files. Empty list if none found.
+        """
+        try:
+            toggled_files: List[str] = []
+            response = self.client.table("users").select("toggled_files").eq("id", user_id).execute()
+            
+            if response.data and response.data[0].get("toggled_files"):
+                # toggled_files is stored as JSONB in the database
+                file_ids = response.data[0]["toggled_files"]
+                
+                for file_id in file_ids:
+                    file_response = self.client.table("file_metadata").select("pinecone_id").eq("file_id", file_id).execute()
+                    
+                    if file_response.data and len(file_response.data) > 0 and file_response.data[0].get("pinecone_id"):
+                        pinecone_id = file_response.data[0]["pinecone_id"]
+                        if pinecone_id:  # Only add non-empty pinecone_ids
+                            toggled_files.append(pinecone_id)
+
+            return toggled_files
+        except Exception as e:
+            logger.error(f"Error fetching user toggled files: {e}")
             raise
 
 

@@ -14,7 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.core.config import settings
 from app.core.logging import logger
 from app.db.pinecone import pinecone_client
-
+from app.db.supabase import supabase_client
 
 class EmbeddingService:
     """
@@ -141,15 +141,31 @@ class EmbeddingService:
             # Generate embeddings and prepare vectors for Pinecone
             vectors = []
             
+            # Pinecone metadata limit is 40KB (40960 bytes)
+            MAX_METADATA_BYTES = 30000  # Leave some buffer for other metadata fields
+            
             for i, chunk in enumerate(chunks):
                 # Generate embedding for the chunk
                 embedding = await self.generate_embedding(chunk)
+                
+                # Truncate the chunk if needed to fit within metadata limits
+                chunk_for_metadata = chunk
+                chunk_bytes = len(chunk.encode('utf-8'))
+                
+                if chunk_bytes > MAX_METADATA_BYTES:
+                    # Truncate the chunk to fit within limits
+                    # This is a simple truncation; in production you might want 
+                    # to implement a smarter truncation that preserves meaning
+                    truncate_ratio = MAX_METADATA_BYTES / chunk_bytes
+                    truncate_length = int(len(chunk) * truncate_ratio)
+                    chunk_for_metadata = chunk[:truncate_length] + "... [truncated]"
+                    logger.warning(f"Truncated chunk {i} from {chunk_bytes} bytes to {len(chunk_for_metadata.encode('utf-8'))} bytes")
                 
                 # Create metadata for the vector
                 metadata = {
                     "file_id": file_id,
                     "file_path": file_path,
-                    "text_chunk": chunk,
+                    "text_chunk": chunk_for_metadata,
                     "chunk_index": i,
                     "source": source,
                     "total_chunks": len(chunks)
@@ -229,17 +245,9 @@ class EmbeddingService:
             Dict[str, Any]: The deletion response.
         """
         try:
-            # Create a filter to match all vectors for this file
-            filter = {"file_id": {"$eq": file_id}}
+            pinecone_id = supabase_client.table("files").select("pinecone_id").eq("id", file_id).execute().data[0]["pinecone_id"]
             
-            # Use Pinecone's delete by filter functionality
-            response = await pinecone_client.index.delete(
-                filter=filter,
-                namespace=namespace
-            )
-            
-            logger.info(f"Deleted vectors for file {file_id}")
-            return response
+            return await self.delete_vectors_by_pinecone_id(pinecone_id, namespace)
         except Exception as e:
             logger.error(f"Error deleting file vectors: {e}")
             raise

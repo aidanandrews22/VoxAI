@@ -49,15 +49,15 @@ class DocumentProcessor(FileProcessor):
             'file_extension': os.path.splitext(file_path)[1],
         }
     
-    async def _extract_text_from_image(self, image: Image.Image) -> str:
+    async def _extract_text_and_description_from_image(self, image: Image.Image) -> str:
         """
-        Extract text from an image using Google Vision API.
+        Extract text and generate description from an image using Google Gemini.
         
         Args:
             image: PIL Image object
             
         Returns:
-            str: Extracted text
+            str: Extracted text and generated description
         """
         try:
             from google import genai
@@ -75,16 +75,20 @@ class DocumentProcessor(FileProcessor):
             from google.genai import types
             image_part = types.Part.from_bytes(data=image_bytes, mime_type="image/png")
             
-            # Generate content using Gemini
+            combined_prompt = """
+                1. Extract all text visible in this image. If no text is visible, respond with 'No text detected.'
+                2. Provide a detailed description of what's in this image.
+            """
+
             response = client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=["Extract all text visible in this image", image_part]
+                model="gemini-1.5-flash-8b",
+                contents=[combined_prompt, image_part]
             )
             
             return response.text
         except Exception as e:
-            logger.error(f"Error extracting text from image: {e}")
-            return ""
+            logger.error(f"Error extracting text and description from image: {e}")
+            return "Error processing image content." 
 
 
 class PDFProcessor(DocumentProcessor):
@@ -117,16 +121,74 @@ class PDFProcessor(DocumentProcessor):
                 # Extract text from the page
                 page_text = page.get_text()
                 
-                # If the page has no text (or very little), it might be scanned/image-based
-                if len(page_text.strip()) < 50:  # Arbitrary threshold
-                    # Extract images and process them
-                    image_list = self._extract_images_from_page(page)
-                    for img in image_list:
-                        img_text = await self._extract_text_from_image(img)
+                # Extract images and their positions from the page
+                image_info = await self._extract_images_with_positions(page)
+                
+                if not image_info and not page_text.strip():
+                    # Empty page
+                    full_text.append(f"[PAGE {page_num + 1} - EMPTY]")
+                    continue
+                
+                if not image_info:
+                    # Text only page
+                    full_text.append(f"[PAGE {page_num + 1}]\n{page_text}")
+                    continue
+                
+                if not page_text.strip():
+                    # Image only page
+                    image_texts = []
+                    for img, _, _ in image_info:
+                        img_text = await self._extract_text_and_description_from_image(img)
                         if img_text:
-                            full_text.append(img_text)
-                else:
-                    full_text.append(page_text)
+                            image_texts.append(f"[IMAGE CONTENT START]\n{img_text}\n[IMAGE CONTENT END]")
+                    
+                    full_text.append(f"[PAGE {page_num + 1} - IMAGES ONLY]\n\n" + "\n\n".join(image_texts))
+                    continue
+                
+                # Page with both text and images - attempt to maintain order
+                # For simplicity, we'll divide the page into top and bottom sections
+                # and place images accordingly
+                
+                # Get page height
+                page_height = page.rect.height
+                
+                # Separate images into top half and bottom half
+                top_images = []
+                bottom_images = []
+                
+                for img, x, y in image_info:
+                    if y < page_height / 2:
+                        top_images.append(img)
+                    else:
+                        bottom_images.append(img)
+                
+                # Process top images
+                top_image_texts = []
+                for img in top_images:
+                    img_text = await self._extract_text_and_description_from_image(img)
+                    if img_text:
+                        top_image_texts.append(f"[IMAGE CONTENT START]\n{img_text}\n[IMAGE CONTENT END]")
+                
+                # Process bottom images
+                bottom_image_texts = []
+                for img in bottom_images:
+                    img_text = await self._extract_text_and_description_from_image(img)
+                    if img_text:
+                        bottom_image_texts.append(f"[IMAGE CONTENT START]\n{img_text}\n[IMAGE CONTENT END]")
+                
+                # Combine content in a way that approximates the original layout
+                page_content = []
+                page_content.append(f"[PAGE {page_num + 1}]")
+                
+                if top_image_texts:
+                    page_content.append("\n\n".join(top_image_texts))
+                
+                page_content.append(page_text)
+                
+                if bottom_image_texts:
+                    page_content.append("\n\n".join(bottom_image_texts))
+                
+                full_text.append("\n\n".join(page_content))
             
             pdf_document.close()
             
@@ -152,9 +214,16 @@ class PDFProcessor(DocumentProcessor):
             # Process PDF using PyMuPDF (fitz)
             pdf_document = fitz.open(stream=file_content, filetype="pdf")
             
+            # Count total images in the document
+            total_images = 0
+            for page_num in range(len(pdf_document)):
+                page = pdf_document[page_num]
+                total_images += len(page.get_images(full=True))
+            
             # Extract document metadata
             metadata = {
                 'page_count': len(pdf_document),
+                'image_count': total_images,
                 'title': pdf_document.metadata.get('title', ''),
                 'author': pdf_document.metadata.get('author', ''),
                 'subject': pdf_document.metadata.get('subject', ''),
@@ -177,6 +246,47 @@ class PDFProcessor(DocumentProcessor):
         except Exception as e:
             logger.error(f"Error extracting PDF metadata: {e}")
             return base_metadata
+    
+    async def _extract_images_with_positions(self, page: fitz.Page) -> List[Tuple[Image.Image, float, float]]:
+        """
+        Extract images from a PDF page along with their positions.
+        
+        Args:
+            page: PyMuPDF page object
+            
+        Returns:
+            List[Tuple[Image.Image, float, float]]: List of tuples containing (image, x_pos, y_pos)
+        """
+        images_with_pos = []
+        
+        # Get image list
+        img_list = page.get_images(full=True)
+        
+        for img_index, img_info in enumerate(img_list):
+            try:
+                xref = img_info[0]
+                base_image = page.parent.extract_image(xref)
+                
+                # Convert to PIL Image
+                image_data = base_image["image"]
+                img = Image.open(io.BytesIO(image_data))
+                
+                # Only process images that are big enough to contain meaningful text
+                if img.width > 100 and img.height > 100:
+                    # Find the image on the page to get its position
+                    for img_rect in page.get_image_rects(xref):
+                        # Use the top-left corner as the position reference
+                        x_pos = img_rect.x0
+                        y_pos = img_rect.y0
+                        images_with_pos.append((img, x_pos, y_pos))
+                        break  # Just use the first occurrence if multiple
+            except Exception as e:
+                logger.error(f"Error extracting image {img_index} from PDF: {e}")
+        
+        # Sort by y-position (top to bottom)
+        images_with_pos.sort(key=lambda x: x[2])
+        
+        return images_with_pos
     
     def _extract_images_from_page(self, page: fitz.Page) -> List[Image.Image]:
         """
@@ -238,18 +348,26 @@ class WordProcessor(DocumentProcessor):
             # Process the Word document
             doc = docx.Document(temp_path)
             
+            # Extract text from paragraphs and tables
+            document_content = []
+            
             # Extract text from paragraphs
-            full_text = []
             for para in doc.paragraphs:
-                full_text.append(para.text)
+                if para.text.strip():
+                    document_content.append(para.text)
             
             # Extract text from tables
             for table in doc.tables:
+                table_content = []
                 for row in table.rows:
                     row_text = []
                     for cell in row.cells:
-                        row_text.append(cell.text)
-                    full_text.append(" | ".join(row_text))
+                        if cell.text.strip():
+                            row_text.append(cell.text)
+                    if row_text:
+                        table_content.append(" | ".join(row_text))
+                if table_content:
+                    document_content.append("\n".join(table_content))
             
             # Clean up the temporary file
             os.unlink(temp_path)
@@ -257,11 +375,12 @@ class WordProcessor(DocumentProcessor):
             # Process images if there are any
             images = await self._extract_images_from_doc(file_content)
             for img in images:
-                img_text = await self._extract_text_from_image(img)
+                img_text = await self._extract_text_and_description_from_image(img)
                 if img_text:
-                    full_text.append(img_text)
+                    # Add a marker to indicate this is from an image
+                    document_content.append(f"[IMAGE CONTENT START]\n{img_text}\n[IMAGE CONTENT END]")
             
-            return "\n\n".join(full_text)
+            return "\n\n".join(document_content)
         except Exception as e:
             logger.error(f"Error processing Word document: {e}")
             raise
@@ -289,6 +408,10 @@ class WordProcessor(DocumentProcessor):
             # Process the Word document
             doc = docx.Document(temp_path)
             
+            # Count images in the document
+            images = await self._extract_images_from_doc(file_content)
+            image_count = len(images)
+            
             # Extract document properties
             core_properties = doc.core_properties
             
@@ -302,6 +425,7 @@ class WordProcessor(DocumentProcessor):
                 'last_modified_by': core_properties.last_modified_by,
                 'paragraph_count': len(doc.paragraphs),
                 'table_count': len(doc.tables),
+                'image_count': image_count,
             }
             
             # Remove empty metadata fields

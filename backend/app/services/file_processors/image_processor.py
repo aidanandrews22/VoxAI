@@ -123,14 +123,14 @@ class ImageProcessor(FileProcessor):
             # First, try to extract any text in the image
             text_prompt = "Extract all text visible in this image. If no text is visible, respond with 'No text detected.'"
             text_response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-1.5-flash-8b",
                 contents=[text_prompt, image_part]
             )
             
             # Then, generate a description of the image content
             desc_prompt = "Provide a detailed description of what's in this image."
             desc_response = client.models.generate_content(
-                model="gemini-2.0-flash",
+                model="gemini-1.5-flash-8b",
                 contents=[desc_prompt, image_part]
             )
             
