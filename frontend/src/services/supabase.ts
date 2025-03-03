@@ -9,22 +9,38 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Store the authenticated client in memory
+let authenticatedClient: any = null;
+let lastToken: string | null = null;
+
 /**
  * Creates a Supabase client with the Clerk JWT token
  * This is necessary for Row Level Security policies to work correctly
+ * Uses memoization to avoid creating multiple clients with the same token
  */
 export async function createSupabaseClientWithToken(token: string) {
   if (!token) return supabase;
   
+  // If we already have a client with this token, return it
+  if (authenticatedClient && token === lastToken) {
+    return authenticatedClient;
+  }
+  
   console.log('Creating Supabase client with token');
   
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  // Create a new client with the token
+  authenticatedClient = createClient(supabaseUrl, supabaseAnonKey, {
     global: {
       headers: {
         Authorization: `Bearer ${token}`,
       },
     },
   });
+  
+  // Store the token for future reference
+  lastToken = token;
+  
+  return authenticatedClient;
 }
 
 // Function to sync Clerk user with Supabase

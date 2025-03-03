@@ -10,7 +10,7 @@ import {
   getChatMessages,
   deleteChatSession,
 } from '../../services/notebookService';
-import { streamChatWithGemini, formatMessagesForGemini } from '../../services/geminiService';
+import { streamChatWithGemini } from '../../services/geminiService';
 import type { Notebook, NotebookFile, ChatSession, ChatMessage } from '../../services/supabase';
 // import Header from '../../components/Header';
 import Sidebar from '../../components/Sidebar';
@@ -23,6 +23,7 @@ import toast from 'react-hot-toast';
 // Extended NotebookFile type to include processing status
 interface ExtendedNotebookFile extends NotebookFile {
   isProcessing?: boolean;
+  isDeletingFile?: boolean;
 }
 
 export default function NotebookDetailPage() {
@@ -34,8 +35,8 @@ export default function NotebookDetailPage() {
   const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputMessage, setInputMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingFiles, setIsLoadingFiles] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
@@ -83,7 +84,12 @@ export default function NotebookDetailPage() {
     if (!notebookId) return;
     
     async function fetchFiles() {
-      setIsLoadingFiles(true);
+      // Only set loading state if we don't already have files (initial load)
+      const isInitialLoad = files.length === 0;
+      if (isInitialLoad) {
+        setIsLoadingFiles(true);
+      }
+      
       try {
         // Make sure notebookId is not undefined
         if (notebookId) {
@@ -106,7 +112,10 @@ export default function NotebookDetailPage() {
       } catch (err) {
         console.error('Error fetching files:', err);
       } finally {
-        setIsLoadingFiles(false);
+        // Only toggle loading state off if we set it on
+        if (isInitialLoad) {
+          setIsLoadingFiles(false);
+        }
       }
     }
 
@@ -164,13 +173,23 @@ export default function NotebookDetailPage() {
     fetchMessages();
   }, [currentChatSession]);
 
-  // Scroll to bottom of messages
+  // Main effect to handle scrolling in all scenarios
   useEffect(() => {
-    // Only scroll when messages or streaming content changes, not when editing title
-    if (!isEditingChatTitle) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // This will run both on initial render and whenever dependencies change
+    if (messagesEndRef.current) {
+      // Use 'auto' behavior for immediate scroll without animation
+      // This makes the initial load snap to bottom immediately
+      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
     }
-  }, [messages, streamingContent, isEditingChatTitle]);
+  }, [messages]); // Only depend on messages to avoid unnecessary scrolls
+
+  // For smoother experience during active conversations
+  useEffect(() => {
+    // Only scroll smoothly when streaming content changes (during active typing)
+    if (messagesEndRef.current && streamingContent) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [streamingContent]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!notebookId || !supabaseUserId || !e.target.files || e.target.files.length === 0) return;
@@ -295,25 +314,113 @@ export default function NotebookDetailPage() {
   };
 
   const handleDeleteFile = async (fileId: string) => {
+    console.log('[DEBUG] Starting file deletion process for:', fileId);
+    
     try {
+      // Find the file by ID to log its current state
+      const fileToDelete = files.find(file => file.id === fileId);
+      console.log('[DEBUG] Current file state before deletion:', fileToDelete);
+      
+      // If the file is already being processed, don't allow another delete operation
+      if (fileToDelete?.isProcessing) {
+        console.log('[DEBUG] File is already being processed, ignoring delete request');
+        return;
+      }
+      
+      // Mark the file as processing during deletion
+      setFiles(prevFiles => {
+        const updatedFiles = prevFiles.map(file => 
+          file.id === fileId 
+            ? { ...file, isProcessing: true, isDeletingFile: true } 
+            : file
+        );
+        console.log('[DEBUG] File state after marking as deleting:', 
+          updatedFiles.find(f => f.id === fileId)
+        );
+        return updatedFiles;
+      });
+      
       // Get authenticated Supabase client
+      console.log('[DEBUG] Getting authenticated Supabase client');
       const authClient = await getSupabaseClient();
       
       // If we couldn't get an authenticated client, show an error
       if (!authClient) {
+        console.error('[DEBUG] Authentication failed when trying to delete file');
+        
+        // Restore the file to its previous state
+        setFiles(prevFiles => {
+          const restoredFiles = prevFiles.map(file => 
+            file.id === fileId 
+              ? { ...file, isProcessing: false, isDeletingFile: false } 
+              : file
+          );
+          console.log('[DEBUG] File state after restoring due to auth failure:', 
+            restoredFiles.find(f => f.id === fileId)
+          );
+          return restoredFiles;
+        });
+        
         setError('Authentication error. Please try again or refresh the page.');
         return;
       }
       
+      console.log('[DEBUG] Calling deleteFile service function');
       const result = await deleteFile(fileId, authClient);
+      console.log('[DEBUG] deleteFile result:', result);
+      
       if (result.success) {
-        setFiles(files.filter(file => file.id !== fileId));
+        // Only remove the file from the array after successful deletion
+        // Use a key-based removal approach to prevent race conditions
+        setFiles(prevFiles => {
+          console.log('[DEBUG] Removing file with ID:', fileId);
+          console.log('[DEBUG] Current file count:', prevFiles.length);
+          
+          const filteredFiles = prevFiles.filter(file => file.id !== fileId);
+          console.log('[DEBUG] Files array after removing deleted file, new count:', filteredFiles.length);
+          return filteredFiles;
+        });
+        
+        toast?.success('File deleted successfully');
       } else {
+        console.error('[DEBUG] File deletion failed with result:', result);
+        
+        // Restore the file to its previous state
+        setFiles(prevFiles => {
+          const restoredFiles = prevFiles.map(file => 
+            file.id === fileId 
+              ? { ...file, isProcessing: false, isDeletingFile: false } 
+              : file
+          );
+          console.log('[DEBUG] File state after restoring due to deletion failure:', 
+            restoredFiles.find(f => f.id === fileId)
+          );
+          return restoredFiles;
+        });
+        
         setError('Failed to delete file');
+        toast?.error('Failed to delete file');
       }
     } catch (err) {
-      console.error('Error deleting file:', err);
+      console.error('[DEBUG] Exception during file deletion:', err);
+      
+      // Restore the files array in case of error
+      setFiles(prevFiles => {
+        const restoredFiles = prevFiles.map(file => 
+          file.id === fileId 
+            ? { ...file, isProcessing: false, isDeletingFile: false } 
+            : file
+        );
+        console.log('[DEBUG] File state after restoring due to exception:', 
+          restoredFiles.find(f => f.id === fileId)
+        );
+        return restoredFiles;
+      });
+      
       setError('An error occurred while deleting the file');
+      toast?.error('An error occurred while deleting the file');
+    } finally {
+      console.log('[DEBUG] File deletion process completed for:', fileId);
     }
   };
 
@@ -358,6 +465,25 @@ export default function NotebookDetailPage() {
     setInputMessage('');
     
     try {
+      // Create a temporary user message to display immediately
+      const tempUserMessage: ChatMessage = {
+        id: `temp-${Date.now()}`,
+        chat_session_id: currentChatSession.id,
+        notebook_id: notebookId,
+        user_id: supabaseUserId,
+        content: messageText,
+        is_user: true,
+        created_at: new Date().toISOString()
+      };
+      
+      // Update messages locally first for immediate display
+      setMessages(prevMessages => [...prevMessages, tempUserMessage]);
+      
+      // Scroll to the new message
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+      
       // Send user message to backend
       const userMessageResult = await sendChatMessage(
         currentChatSession.id,
@@ -372,7 +498,7 @@ export default function NotebookDetailPage() {
         return;
       }
       
-      // Start streaming immediately without refreshing messages
+      // Start streaming immediately
       setIsStreaming(true);
       setStreamingContent('');
       

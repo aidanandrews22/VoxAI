@@ -131,6 +131,16 @@ class EmbeddingService:
             # Generate a unique ID for this file in Pinecone
             pinecone_id = f"file_{file_id}_{hashlib.md5(content.encode()).hexdigest()[:8]}"
             
+            # Fetch file metadata from Supabase
+            from app.services.file_service import file_service
+            file_metadata = await file_service.get_file_metadata(file_id)
+            description = None
+            metadata_dict = {}
+            
+            if file_metadata:
+                description = file_metadata.description
+                metadata_dict = file_metadata.metadata
+            
             # Chunk the text
             chunks = await self.chunk_text(content)
             
@@ -142,7 +152,7 @@ class EmbeddingService:
             vectors = []
             
             # Pinecone metadata limit is 40KB (40960 bytes)
-            MAX_METADATA_BYTES = 30000  # Leave some buffer for other metadata fields
+            MAX_METADATA_BYTES = 30000
             
             for i, chunk in enumerate(chunks):
                 # Generate embedding for the chunk
@@ -171,6 +181,78 @@ class EmbeddingService:
                     "total_chunks": len(chunks)
                 }
                 
+                # Add file description and metadata if available
+                if description:
+                    metadata["description"] = description
+                
+                if metadata_dict:
+                    # Include file metadata while ensuring it won't exceed size limits
+                    # First check the size of the current metadata
+                    metadata_json = json.dumps(metadata)
+                    current_metadata_size = len(metadata_json.encode('utf-8'))
+                    
+                    # Calculate how much space we have left for additional metadata
+                    remaining_bytes = MAX_METADATA_BYTES - current_metadata_size
+                    
+                    if remaining_bytes > 1000:  # Ensure we have enough space to be worth adding metadata
+                        # Process metadata to ensure all values are Pinecone-compatible
+                        # Pinecone only accepts strings, numbers, booleans, or arrays of strings
+                        pinecone_compatible_metadata = {}
+                        
+                        for key, value in metadata_dict.items():
+                            # Skip null values
+                            if value is None:
+                                continue
+                                
+                            # Handle different value types
+                            if isinstance(value, (str, int, float, bool)) or (isinstance(value, list) and all(isinstance(item, str) for item in value)):
+                                # These types are directly supported by Pinecone
+                                pinecone_compatible_metadata[key] = value
+                            elif isinstance(value, list):
+                                # Convert non-string lists to string representations
+                                pinecone_compatible_metadata[key] = json.dumps(value)
+                            elif isinstance(value, dict) or isinstance(value, object):
+                                # Convert dictionaries and other objects to string representations
+                                pinecone_compatible_metadata[key] = json.dumps(value)
+                            else:
+                                # For any other types, convert to string
+                                pinecone_compatible_metadata[key] = str(value)
+                        
+                        # Check if the processed metadata fits within the remaining space
+                        compatible_metadata_json = json.dumps(pinecone_compatible_metadata)
+                        compatible_metadata_size = len(compatible_metadata_json.encode('utf-8'))
+                        
+                        if compatible_metadata_size <= remaining_bytes:
+                            # We can include all the compatible metadata
+                            metadata.update(pinecone_compatible_metadata)
+                        else:
+                            # Only include metadata fields that fit
+                            logger.warning(f"Compatible metadata size ({compatible_metadata_size} bytes) exceeds remaining space ({remaining_bytes} bytes). Adding partial metadata.")
+                            
+                            # Add fields one by one until we reach the limit
+                            current_size = current_metadata_size
+                            for key, value in pinecone_compatible_metadata.items():
+                                value_json = json.dumps({key: value})
+                                value_size = len(value_json.encode('utf-8'))
+                                
+                                if current_size + value_size <= MAX_METADATA_BYTES:
+                                    metadata[key] = value
+                                    current_size += value_size
+                                else:
+                                    break
+                    
+                    # Final check to ensure we haven't exceeded limit with our additions
+                    final_metadata_json = json.dumps(metadata)
+                    final_metadata_size = len(final_metadata_json.encode('utf-8'))
+                    
+                    if final_metadata_size > MAX_METADATA_BYTES:
+                        # If we somehow still exceeded the limit, keep only the essential fields
+                        logger.warning(f"Final metadata size ({final_metadata_size} bytes) still exceeds limit. Keeping only essential fields.")
+                        
+                        essential_fields = ["file_id", "file_path", "text_chunk", "chunk_index", "source", "total_chunks", "description"]
+                        filtered_metadata = {k: metadata[k] for k in essential_fields if k in metadata}
+                        metadata = filtered_metadata
+                
                 # Create a unique ID for this chunk
                 chunk_id = f"{pinecone_id}_chunk_{i}"
                 
@@ -183,54 +265,6 @@ class EmbeddingService:
             return pinecone_id
         except Exception as e:
             logger.error(f"Error processing file content: {e}")
-            raise
-
-    async def search_similar(
-        self, 
-        query: str, 
-        top_k: int = 5, 
-        namespace: str = "",
-        filter: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Searches for similar vectors in Pinecone.
-        
-        Args:
-            query: The query text.
-            top_k: Number of results to return.
-            namespace: The namespace to search in.
-            filter: Metadata filters to apply.
-            
-        Returns:
-            List[Dict[str, Any]]: The search results.
-        """
-        try:
-            # Generate embedding for the query
-            query_embedding = await self.generate_embedding(query)
-            
-            # Query Pinecone
-            results = await pinecone_client.query_vectors(
-                query_vector=query_embedding,
-                top_k=top_k,
-                namespace=namespace,
-                filter=filter
-            )
-            
-            # Format results
-            formatted_results = []
-            for result in results:
-                formatted_results.append({
-                    "text": result["metadata"]["text_chunk"],
-                    "score": result["score"],
-                    "file_id": result["metadata"]["file_id"],
-                    "file_path": result["metadata"]["file_path"],
-                    "source": result["metadata"]["source"],
-                    "metadata": {k: v for k, v in result["metadata"].items() if k not in ["text_chunk", "file_id", "file_path", "source"]}
-                })
-            
-            return formatted_results
-        except Exception as e:
-            logger.error(f"Error searching similar vectors: {e}")
             raise
 
     async def delete_file_vectors(self, file_id: str, namespace: str = "") -> Dict[str, Any]:

@@ -224,60 +224,28 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
                     filter=filter_dict
                 )
             
-            # Process context: group by file_id and fetch complete metadata
-            grouped_context = {}
-            file_metadata_cache = {}
-            
-            # First group all chunks by file_id
-            for doc in raw_context:
-                file_id = doc.get("file_id", "")
-                if not file_id:
-                    continue
-                    
-                if file_id not in grouped_context:
-                    grouped_context[file_id] = []
-                    
-                grouped_context[file_id].append(doc)
-            
-            # Log the number of unique files found
-            logger.info(f"Found {len(grouped_context)} unique files in RAG results (streaming)")
-            
-            # Now create context with complete file content and metadata
+            # Direct pass-through of search results to the LLM
+            # Format each result with minimal processing
             context = []
-            for file_id, docs in grouped_context.items():
-                # Get file metadata if we haven't cached it yet
-                if file_id not in file_metadata_cache:
-                    file_metadata = await supabase_client.get_file_metadata(file_id)
-                    file_metadata_cache[file_id] = file_metadata
-                    logger.info(f"Retrieved metadata for file_id {file_id}: {file_metadata}")
-                else:
-                    file_metadata = file_metadata_cache[file_id]
-                    
-                # Sort chunks by their index to maintain order
-                docs.sort(key=lambda x: x.get("metadata", {}).get("chunk_index", 0))
+            for doc in raw_context:
+                # Get the document metadata
+                metadata = doc.get("metadata", {})
                 
-                # Combine all chunks for this file
-                full_text = "\n\n".join([doc.get("text", "") for doc in docs])
+                # Create context entry directly from the search result
+                context_entry = {
+                    "text": metadata.get("text_chunk", doc.get("text", "")),
+                    "score": doc.get("score", 0.0),
+                    "file_id": metadata.get("file_id", ""),
+                    "file_path": metadata.get("file_path", ""),
+                    "source": metadata.get("source", "Unknown"),
+                    "metadata": metadata
+                }
                 
-                # Extract filename from file_path
-                file_path = docs[0].get("file_path", "") if docs else ""
-                filename = file_path.split("/")[-1] if "/" in file_path else file_path
-                
-                logger.info(f"Processed file {filename} with {len(docs)} chunks and {len(full_text)} characters (streaming)")
-                
-                # Create a single context entry with the complete file content
-                context.append({
-                    "text": full_text,
-                    "score": max([doc.get("score", 0.0) for doc in docs]) if docs else 0.0,
-                    "file_id": file_id,
-                    "file_path": file_path,
-                    "source": filename,
-                    "metadata": {
-                        "description": file_metadata.get("description", ""),
-                        "file_metadata": file_metadata.get("metadata", {}),
-                        "chunk_count": len(docs)
-                    }
-                })
+                # Add to context
+                context.append(context_entry)
+            
+            # Log the final context count
+            logger.info(f"Final context count: {len(context)} documents")
             
             # Format sources for the response (using processed context)
             sources = [

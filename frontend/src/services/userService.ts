@@ -12,6 +12,7 @@ export async function saveToggledFiles(
   token?: string
 ): Promise<boolean> {
   try {
+    // Only create new client if token is provided
     const client = token ? await createSupabaseClientWithToken(token) : supabase;
     
     const { error } = await client
@@ -42,6 +43,7 @@ export async function getToggledFiles(
   token?: string
 ): Promise<string[]> {
   try {
+    // Only create new client if token is provided
     const client = token ? await createSupabaseClientWithToken(token) : supabase;
     
     const { data, error } = await client

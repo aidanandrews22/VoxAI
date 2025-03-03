@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react';
 import { useUser, useAuth } from '@clerk/clerk-react';
 import { syncUserWithSupabase, createSupabaseClientWithToken } from '../services/supabase';
 
@@ -28,6 +28,10 @@ export function UserProvider({ children }: UserProviderProps) {
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // Store the last token request time to throttle requests
+  const [lastTokenRequestTime, setLastTokenRequestTime] = useState(0);
+  // Cache for the Supabase client
+  const [cachedClient, setCachedClient] = useState<any>(null);
 
   useEffect(() => {
     const syncUser = async () => {
@@ -60,12 +64,19 @@ export function UserProvider({ children }: UserProviderProps) {
   }, [user, isClerkLoaded]);
 
   // Function to get a Supabase client with the user's token
-  const getSupabaseClient = async () => {
+  const getSupabaseClient = useCallback(async () => {
     if (!user) return null;
+    
+    // Throttle token requests - reuse client if it's requested again within 5 minutes
+    const now = Date.now();
+    const tokenLifetime = 5 * 60 * 1000; // 5 minutes
+    
+    if (cachedClient && now - lastTokenRequestTime < tokenLifetime) {
+      return cachedClient;
+    }
     
     try {
       // Get JWT token from Clerk
-      // Note: You need to create a 'supabase' JWT template in the Clerk Dashboard
       const token = await getToken({ template: 'supabase' });
       
       if (!token) {
@@ -74,12 +85,18 @@ export function UserProvider({ children }: UserProviderProps) {
       }
       
       // Create a Supabase client with the token
-      return await createSupabaseClientWithToken(token);
+      const client = await createSupabaseClientWithToken(token);
+      
+      // Update cache and timestamp
+      setCachedClient(client);
+      setLastTokenRequestTime(now);
+      
+      return client;
     } catch (err) {
       console.error('Error getting Supabase client:', err);
       return null;
     }
-  };
+  }, [user, getToken, cachedClient, lastTokenRequestTime]);
 
   const value = {
     supabaseUserId,

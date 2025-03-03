@@ -1,6 +1,7 @@
 """
 Pinecone client module for vector database operations.
 """
+import json
 from typing import Any, Dict, List, Optional, Tuple
 
 import pinecone
@@ -87,9 +88,33 @@ class PineconeClient:
             MAX_METADATA_BYTES = 40960
             
             for id, vector, metadata in vectors:
-                # Check metadata size
-                import json
-                metadata_json = json.dumps(metadata)
+                # Validate and sanitize metadata for Pinecone compatibility
+                # Pinecone only accepts strings, numbers, booleans, or arrays of strings as values
+                sanitized_metadata = {}
+                for key, value in metadata.items():
+                    # Skip null values
+                    if value is None:
+                        continue
+                        
+                    # Handle different value types
+                    if isinstance(value, (str, int, float, bool)):
+                        # These primitive types are directly supported
+                        sanitized_metadata[key] = value
+                    elif isinstance(value, list) and all(isinstance(item, str) for item in value):
+                        # Lists of strings are supported
+                        sanitized_metadata[key] = value
+                    elif isinstance(value, list):
+                        # Convert non-string lists to string
+                        sanitized_metadata[key] = json.dumps(value)
+                    elif isinstance(value, dict):
+                        # Convert dictionaries to string
+                        sanitized_metadata[key] = json.dumps(value)
+                    else:
+                        # For any other types, convert to string
+                        sanitized_metadata[key] = str(value)
+                
+                # Check metadata size after sanitization
+                metadata_json = json.dumps(sanitized_metadata)
                 metadata_size = len(metadata_json.encode('utf-8'))
                 
                 if metadata_size > MAX_METADATA_BYTES:
@@ -97,7 +122,7 @@ class PineconeClient:
                     skipped_vectors += 1
                     continue
                 
-                vectors_to_upsert.append({"id": id, "values": vector, "metadata": metadata})
+                vectors_to_upsert.append({"id": id, "values": vector, "metadata": sanitized_metadata})
             
             if not vectors_to_upsert:
                 logger.warning("No vectors to upsert after size filtering")
@@ -236,9 +261,8 @@ class PineconeClient:
         filter: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """
-        Performs a text-based search against the Pinecone index using search_records.
-        This directly searches using the text without requiring external embedding generation.
-        
+        Search for records using text search.
+
         Args:
             query_text: The text query
             top_k: Number of results to return
@@ -260,11 +284,9 @@ class PineconeClient:
                 "inputs": {"text": query_text},
                 "top_k": top_k
             }
-            
-            # Add filter if provided
-            if filter:
-                search_query["filter"] = filter
-                
+            if not namespace:
+                namespace = ""
+            # Perform search without applying filter at the Pinecone level
             response = self.index.search_records(
                 namespace=namespace,
                 query=search_query
@@ -276,9 +298,17 @@ class PineconeClient:
             # The response contains 'result' with 'hits' instead of 'matches'
             hits = response.get("result", {}).get("hits", [])
             
+            # Apply post-search filtering based on the provided filter
+            filtered_hits = hits
+            if filter and "id" in filter and "$in" in filter["id"]:
+                target_ids = filter["id"]["$in"]
+                # Filter hits where _id exactly matches any of the target_ids
+                filtered_hits = [hit for hit in hits if hit.get("_id") in target_ids]
+                logger.info(f"Post-search filtering applied: {len(filtered_hits)}/{len(hits)} results kept")
+            
             # Transform to match the previous return format for compatibility
             transformed_results = []
-            for hit in hits:
+            for hit in filtered_hits:
                 # Process each hit to a compatible format
                 result = {
                     "id": hit.get("_id"),
@@ -287,7 +317,7 @@ class PineconeClient:
                 }
                 transformed_results.append(result)
                 
-            logger.info(f"Search returned {len(transformed_results)} results")
+            logger.info(f"Search returned {transformed_results}")
             return transformed_results
         except Exception as e:
             logger.error(f"Error searching records in Pinecone: {e}")

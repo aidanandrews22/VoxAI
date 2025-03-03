@@ -1,8 +1,10 @@
 """
 LLM service module for handling interactions with language models.
 """
-import asyncio
+import os
+import re
 import json
+import asyncio
 import time
 from typing import Any, AsyncGenerator, Dict, List, Optional, Tuple, Union
 
@@ -196,47 +198,74 @@ class LLMService:
             formatted_context_parts = []
             
             for i, doc in enumerate(context):
-                # Extract filename from file_path (removing path)
-                file_path = doc.get("file_path", "Unknown")
-                filename = file_path.split("/")[-1] if "/" in file_path else file_path
+                # Get the source/filename
+                source = doc.get("source", "Unknown file")
                 
-                # Get description and metadata
-                description = doc.get("metadata", {}).get("description", "No description available")
-                file_metadata = doc.get("metadata", {}).get("file_metadata", {})
+                # Get text content
+                text_content = doc.get("text", "No content available")
                 
-                # Log the document information
-                logger.info(f"DEBUG - Formatting document {i+1}: {filename}")
-                logger.info(f"DEBUG - Document description: {description}")
-                logger.info(f"DEBUG - Document metadata: {file_metadata}")
-                logger.info(f"DEBUG - Document text length: {len(doc.get('text', ''))}")
+                # Get metadata
+                metadata = doc.get("metadata", {})
                 
-                # Format metadata as key-value pairs if it exists
-                metadata_str = ""
-                if file_metadata:
-                    metadata_items = []
-                    for key, value in file_metadata.items():
-                        if isinstance(value, dict):
-                            # For nested dictionaries, format them as a string
-                            nested_items = [f"{k}: {v}" for k, v in value.items()]
-                            metadata_items.append(f"{key}: {{{', '.join(nested_items)}}}")
-                        elif isinstance(value, list):
-                            # For lists, format them as a string
-                            metadata_items.append(f"{key}: [{', '.join(map(str, value))}]")
-                        else:
-                            # For simple values
-                            metadata_items.append(f"{key}: {value}")
-                    
-                    if metadata_items:
-                        metadata_str = f"\nMetadata: {{{', '.join(metadata_items)}}}"
+                # Get description from metadata if available
+                description = metadata.get("description", "No description available")
+                
+                # Process additional_info if it's a JSON string
+                additional_info_str = ""
+                if "additional_info" in metadata and metadata["additional_info"]:
+                    try:
+                        # Try to parse it as JSON if it's a string
+                        if isinstance(metadata["additional_info"], str) and metadata["additional_info"].startswith("{"):
+                            additional_info = json.loads(metadata["additional_info"])
+                            # Format key fields from additional_info
+                            info_parts = []
+                            for key, value in additional_info.items():
+                                if value:  # Only include non-empty values
+                                    info_parts.append(f"{key}: {value}")
+                            if info_parts:
+                                additional_info_str = "\nAdditional Info:\n" + "\n".join(info_parts)
+                    except json.JSONDecodeError:
+                        # If not valid JSON, just use as is
+                        additional_info_str = f"\nAdditional Info: {metadata['additional_info']}"
+                
+                # Get entities if available
+                entities_str = ""
+                if "entities" in metadata and metadata["entities"]:
+                    if isinstance(metadata["entities"], list):
+                        entities_str = f"\nEntities: {', '.join(metadata['entities'])}"
+                    else:
+                        entities_str = f"\nEntities: {metadata['entities']}"
+                
+                # Get key points if available
+                key_points_str = ""
+                if "key_points" in metadata and metadata["key_points"]:
+                    if isinstance(metadata["key_points"], list):
+                        key_points_str = f"\nKey Points:\n- " + "\n- ".join(metadata["key_points"])
+                    else:
+                        key_points_str = f"\nKey Points: {metadata['key_points']}"
+                
+                # Get topics if available
+                topics_str = ""
+                if "topics" in metadata and metadata["topics"]:
+                    if isinstance(metadata["topics"], list):
+                        topics_str = f"\nTopics: {', '.join(metadata['topics'])}"
+                    else:
+                        topics_str = f"\nTopics: {metadata['topics']}"
+                
+                # Combine all metadata
+                metadata_str = f"{additional_info_str}{entities_str}{key_points_str}{topics_str}"
                 
                 # Format this document with clear section headers
                 formatted_doc = f"""
-File #{i+1}: {filename}
-Description: {description}{metadata_str}
-Content:
-{doc.get('text', 'No content available')}
-"""
+                    File #{i+1}: {source}
+                    Description: {description}{metadata_str}
+                    Content:
+                    {text_content}
+                """
                 formatted_context_parts.append(formatted_doc)
+                
+                # Log what we're including for debugging
+                logger.info(f"DEBUG - Added document {i+1}: {source}, description: {description[:50]}...")
             
             # Join all formatted documents
             formatted_context = "\n" + "\n".join(formatted_context_parts)
@@ -245,18 +274,23 @@ Content:
             logger.info(f"DEBUG - Total formatted context length: {len(formatted_context)} characters")
             
             prompt = f"""
-            You are an AI assistant helping to answer questions based on the provided context.
-            
-            Question: {query}
-            
-            Context (information from various files is provided below):
-            {formatted_context}
-            
-            Please provide a comprehensive answer based on the context provided. If the context doesn't contain enough information to answer the question fully, acknowledge the limitations of the available information.
-            
-            When referencing information from the files, refer to them by their filenames (e.g., "According to document.pdf...").
-            
-            Answer:
+                You are an AI assistant helping to answer questions based on provided context, but also capable of responding to direct requests.
+
+                Context:
+                {formatted_context}
+
+                User request: 
+                {query}
+
+                Guidelines:
+                1. Always prioritize directly addressing the user's request first.
+                2. If the request is a direct instruction (like "Tell a story" or "Write a poem"), fulfill it to the best of your ability regardless of the context.
+                3. Only when the request is a question seeking information should you primarily rely on the provided context.
+                4. When using the context to answer questions, reference specific sources when applicable (e.g., "According to [filename]...").
+                5. If the context is irrelevant to the request, simply fulfill the request using your general knowledge and abilities.
+                6. Maintain a helpful, informative, and friendly tone.
+
+                Response:
             """
             
             # Log the total prompt length

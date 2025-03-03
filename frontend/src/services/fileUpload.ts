@@ -136,8 +136,11 @@ export async function deleteFile(
   fileId: string,
   supabaseClient = supabase
 ): Promise<{ success: boolean; error?: any }> {
+  console.log('[DEBUG] deleteFile function starting for:', fileId);
+  
   try {
     // First get the file to know its path
+    console.log('[DEBUG] Fetching file data from Supabase');
     const { data: file, error: fetchError } = await supabaseClient
       .from('notebook_files')
       .select('*')
@@ -145,10 +148,14 @@ export async function deleteFile(
       .single();
 
     if (fetchError) {
+      console.error('[DEBUG] Error fetching file data:', fetchError);
       throw fetchError;
     }
+    
+    console.log('[DEBUG] File data retrieved:', file.file_name);
 
     // Get the pinecone_id from file_metadata table
+    console.log('[DEBUG] Fetching file metadata (pinecone_id)');
     const { data: fileMetadata, error: metadataError } = await supabaseClient
       .from('file_metadata')
       .select('pinecone_id')
@@ -157,45 +164,59 @@ export async function deleteFile(
 
     // Store pinecone_id to use after deletion
     const pineconeId = fileMetadata?.pinecone_id;
+    console.log('[DEBUG] Retrieved pinecone_id:', pineconeId);
     
     if (metadataError) {
-      console.warn('Could not find pinecone_id for file:', metadataError);
+      console.warn('[DEBUG] Could not find pinecone_id for file:', metadataError);
       // Continue with deletion even if we couldn't get the pinecone_id
     }
 
     // Delete from storage
+    console.log('[DEBUG] Deleting file from storage');
     const { error: storageError } = await supabaseClient.storage
       .from('Vox')
       .remove([file.file_path]);
 
     if (storageError) {
-      console.error('Error deleting from storage:', storageError);
+      console.error('[DEBUG] Error deleting from storage:', storageError);
       // Continue anyway to clean up the database record
+    } else {
+      console.log('[DEBUG] Successfully deleted file from storage');
     }
 
     // Delete the record
+    console.log('[DEBUG] Deleting file record from database');
     const { error: deleteError } = await supabaseClient
       .from('notebook_files')
       .delete()
       .eq('id', fileId);
 
     if (deleteError) {
+      console.error('[DEBUG] Error deleting file record:', deleteError);
       throw deleteError;
     }
+    
+    console.log('[DEBUG] Successfully deleted file record from database');
 
     // After successful deletion from Supabase, delete embeddings from vector DB if we have a pinecone_id
+    // This will be handled asynchronously without awaiting to prevent UI blocking
     if (pineconeId) {
-      // Call API to delete embeddings asynchronously
-      deleteEmbeddings(pineconeId).catch(error => {
-        console.error('Error deleting embeddings:', error);
-      });
+      console.log('[DEBUG] Starting embeddings deletion process (asynchronously)');
+      // Call API to delete embeddings but don't await it as it's not critical for UI state
+      // We'll handle errors inside the function instead
+      setTimeout(() => {
+        deleteEmbeddings(pineconeId)
+          .then(() => console.log('[DEBUG] Async embeddings deletion completed successfully'))
+          .catch(error => console.error('[DEBUG] Async error during embeddings deletion:', error));
+      }, 100);
     } else {
-      console.log('No pinecone_id found for file, skipping embeddings deletion');
+      console.log('[DEBUG] No pinecone_id found for file, skipping embeddings deletion');
     }
 
+    console.log('[DEBUG] File deletion process completed successfully for:', fileId);
     return { success: true };
   } catch (error) {
-    console.error('Error deleting file:', error);
+    console.error('[DEBUG] Error in deleteFile function:', error);
     return { success: false, error };
   }
 }
@@ -206,7 +227,7 @@ export async function deleteFile(
  */
 async function deleteEmbeddings(fileId: string): Promise<void> {
   try {
-    console.log('Deleting embeddings for file:', fileId);
+    console.log('[DEBUG] Starting embeddings deletion for file:', fileId);
     
     const response = await fetch('http://localhost:8000/api/v1/files/delete-by-pinecone-id', {
       method: 'POST',
@@ -221,12 +242,14 @@ async function deleteEmbeddings(fileId: string): Promise<void> {
     const result = await response.json();
     
     if (result.success) {
-      console.log('Successfully deleted embeddings:', result.message);
+      console.log('[DEBUG] Successfully deleted embeddings:', result.message);
     } else {
-      console.error('Failed to delete embeddings:', result.detail || result.message);
+      console.error('[DEBUG] Failed to delete embeddings:', result.detail || result.message);
     }
   } catch (error) {
-    console.error('Error calling delete embeddings API:', error);
+    console.error('[DEBUG] Error calling delete embeddings API:', error);
+  } finally {
+    console.log('[DEBUG] Completed embeddings deletion process for:', fileId);
   }
 }
 
