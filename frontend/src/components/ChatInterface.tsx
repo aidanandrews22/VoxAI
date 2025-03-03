@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChatMessage, ChatSession } from '../services/supabase';
+import { ChatMessage, ChatSession } from '../types/chat';
 import { Tooltip } from './Tooltip';
 
 // Add animation styles

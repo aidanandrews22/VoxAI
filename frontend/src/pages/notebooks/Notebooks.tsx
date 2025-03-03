@@ -13,7 +13,7 @@ import {
   getUserFoldersHierarchy,
   isParentFolder
 } from '../../services/folderService';
-import type { Notebook, Folder } from '../../services/supabase';
+import type { Notebook, Folder } from '../../types/notebook';
 import Sidebar from '../../components/Sidebar';
 import NotebookModal from '../../components/NotebookModal';
 // import Header from '../../components/Header';

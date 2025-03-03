@@ -11,7 +11,8 @@ import {
   deleteChatSession,
 } from '../../services/notebookService';
 import { streamChatWithGemini } from '../../services/geminiService';
-import type { Notebook, NotebookFile, ChatSession, ChatMessage } from '../../services/supabase';
+import type { Notebook, NotebookFile } from '../../types/notebook';
+import type { ChatSession, ChatMessage } from '../../types/chat';
 // import Header from '../../components/Header';
 import Sidebar from '../../components/Sidebar';
 import ChatInterface from '../../components/ChatInterface';

@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import type { NotebookFile } from './supabase';
+import type { NotebookFile } from '../types/notebook';
 
 /**
  * Uploads a file to Supabase storage and adds a record to the notebook_files table

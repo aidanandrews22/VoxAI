@@ -4,32 +4,20 @@ const MODEL_NAME = 'gemini-1.5-flash-8b';
 // API endpoint
 const API_URL = 'http://localhost:8000/api/v1/query';
 
-// Define GenerationConfig type for model generation parameters
-export interface GenerationConfig {
-  temperature?: number;
-  topP?: number;
-  topK?: number;
-  maxOutputTokens?: number;
-}
-
-// Default generation config with reasonable values
-export const defaultGenerationConfig: GenerationConfig = {
-  temperature: 0.8,
-  topP: 0.95,
-  topK: 40,
-  maxOutputTokens: 2048
-};
+// Import types from types directory
+import { 
+  type Message, 
+  type MessageRole 
+} from '../types/gemini';
 
 /**
- * Creates a chat with streaming capability using the Query API
- * @param history Array of previous messages in the conversation
- * @param onStreamUpdate Callback function that receives streamed content
- * @param userId The current user's ID for RAG
- * @param generationConfig Optional configuration for the model generation
- * @returns A promise that resolves when streaming is complete
+ * Streams a chat response from the Gemini model
+ * @param history Array of previous messages
+ * @param onStreamUpdate Callback for streaming updates
+ * @param userId User ID for tracking
  */
 export async function streamChatWithGemini(
-  history: { role: 'user' | 'model', content: string }[],
+  history: Message[],
   onStreamUpdate: (content: string) => void,
   userId: string | null
 ): Promise<void> {
@@ -163,7 +151,7 @@ function parseStreamingResponse(streamData: string): string {
           if (data.type === 'token' && data.data) {
             extractedText += data.data;
           }
-        } catch (e) {
+        } catch {
           // If JSON parsing fails, just ignore this line
           console.warn('Failed to parse JSON in stream data line:', line);
         }
@@ -203,13 +191,13 @@ function parseStreamingResponse(streamData: string): string {
  * @param messages Array of chat messages from the database
  * @returns Formatted history for API
  */
-export function formatMessagesForGemini(messages: any[]): { role: 'user' | 'model', content: string }[] {
+export function formatMessagesForGemini(messages: { is_user: boolean; content: string }[]): Message[] {
   if (!messages || messages.length === 0) {
     return [];
   }
   
   return messages.map(message => ({
-    role: message.is_user ? 'user' : 'model',
+    role: message.is_user ? 'user' as MessageRole : 'model' as MessageRole,
     content: message.content || '',
   }));
 } 
