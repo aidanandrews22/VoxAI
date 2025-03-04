@@ -8,7 +8,7 @@ export const ChatMessageSchema = z.object({
   user_id: z.string(),
   content: z.string(),
   is_user: z.boolean(),
-  created_at: z.string().datetime()
+  created_at: z.string().datetime(),
 });
 
 // Type derived from the schema
@@ -20,8 +20,8 @@ export const ChatSessionSchema = z.object({
   notebook_id: z.string().uuid(),
   user_id: z.string(),
   title: z.string(),
-  created_at: z.string().datetime()
+  created_at: z.string().datetime(),
 });
 
 // Type derived from the schema
-export type ChatSession = z.infer<typeof ChatSessionSchema>; 
+export type ChatSession = z.infer<typeof ChatSessionSchema>;

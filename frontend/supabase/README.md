@@ -40,8 +40,10 @@ SELECT delete_chat_session('session-uuid-here');
 ```
 
 **Parameters:**
+
 - `session_id` (UUID): The UUID of the chat session to delete
 
 **Security:**
+
 - The function is defined as `SECURITY DEFINER` which means it runs with the privileges of the user who created it
-- Only authenticated users can execute this function due to the `GRANT EXECUTE` statement 
+- Only authenticated users can execute this function due to the `GRANT EXECUTE` statement

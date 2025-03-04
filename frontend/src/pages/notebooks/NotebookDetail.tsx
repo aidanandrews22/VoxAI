@@ -1,25 +1,35 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { useSupabaseUser } from '../../contexts/UserContext';
-import { getNotebook } from '../../services/notebookService';
-import { getNotebookFiles, uploadFile, deleteFile, processFile } from '../../services/fileUpload';
-import { 
-  createChatSession, 
+import { useState, useEffect, useRef } from "react";
+import { useParams, Link } from "react-router-dom";
+import { useSupabaseUser } from "../../contexts/UserContext";
+import { getNotebook } from "../../services/notebookService";
+import {
+  getNotebookFiles,
+  uploadFile,
+  deleteFile,
+  processFile,
+} from "../../services/fileUpload";
+import {
+  createChatSession,
   getNotebookChatSessions,
   sendChatMessage,
   getChatMessages,
   deleteChatSession,
-} from '../../services/notebookService';
-import { streamChatWithGemini } from '../../services/geminiService';
-import type { Notebook, NotebookFile } from '../../types/notebook';
-import type { ChatSession, ChatMessage } from '../../types/chat';
+} from "../../services/notebookService";
+import { streamChatWithGemini } from "../../services/geminiService";
+import type { Notebook, NotebookFile } from "../../types/notebook";
+import type { ChatSession, ChatMessage } from "../../types/chat";
 // import Header from '../../components/Header';
-import Sidebar from '../../components/Sidebar';
-import ChatInterface from '../../components/ChatInterface';
-import DeleteConfirmationModal from '../../components/DeleteConfirmationModal';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import { getCheckedFiles } from '../../components/Sidebar';
-import toast from 'react-hot-toast';
+import Sidebar from "../../components/Sidebar";
+import ChatInterface from "../../components/ChatInterface";
+import DeleteConfirmationModal from "../../components/DeleteConfirmationModal";
+import LoadingSpinner from "../../components/LoadingSpinner";
+import { getCheckedFiles } from "../../components/Sidebar";
+import toast from "react-hot-toast";
+import ResizablePanel from "../../components/note/ResizablePanel";
+import NotesPanel from "../../components/note/NotesPanel";
+import "../../components/note/notes.css";
+import Sandbox from "../../components/Sandbox";
+import { useSupabase } from "../../hooks/useSupabase";
 
 // Extended NotebookFile type to include processing status
 interface ExtendedNotebookFile extends NotebookFile {
@@ -29,49 +39,63 @@ interface ExtendedNotebookFile extends NotebookFile {
 
 export default function NotebookDetailPage() {
   const { notebookId } = useParams<{ notebookId: string }>();
-  const { supabaseUserId, isLoading: isUserLoading, getSupabaseClient } = useSupabaseUser();
+  const {
+    supabaseUserId,
+    isLoading: isUserLoading,
+    getSupabaseClient,
+    refreshSupabaseToken,
+  } = useSupabaseUser();
   const [notebook, setNotebook] = useState<Notebook | null>(null);
   const [files, setFiles] = useState<ExtendedNotebookFile[]>([]);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
-  const [currentChatSession, setCurrentChatSession] = useState<ChatSession | null>(null);
+  const [currentChatSession, setCurrentChatSession] =
+    useState<ChatSession | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputMessage, setInputMessage] = useState('');
+  const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingFiles, setIsLoadingFiles] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingContent, setStreamingContent] = useState('');
+  const [streamingContent, setStreamingContent] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
-  const [activeTab, setActiveTab] = useState<'files' | 'chats'>('files');
+  const [activeTab, setActiveTab] = useState<"files" | "chats">("files");
   const [isEditingChatTitle, setIsEditingChatTitle] = useState(false);
-  const [editedChatTitle, setEditedChatTitle] = useState('');
+  const [editedChatTitle, setEditedChatTitle] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
   const [chatToDelete, setChatToDelete] = useState<string | null>(null);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set());
 
+  // Notes panel state
+  const [isNotesPanelExpanded, setIsNotesPanelExpanded] = useState(false);
+  // Sandbox panel state
+  const [isSandboxExpanded, setIsSandboxExpanded] = useState(false);
+
   error;
   editedChatTitle;
+
+  // Add our new Supabase hook
+  const { executeWithAuth, getClient, refreshToken } = useSupabase();
 
   // Fetch notebook data
   useEffect(() => {
     async function fetchNotebookData() {
       if (!notebookId) return;
-      
+
       setIsLoading(true);
       try {
         const result = await getNotebook(notebookId);
         if (result.success && result.data) {
           setNotebook(result.data);
         } else {
-          setError('Failed to load notebook');
+          setError("Failed to load notebook");
         }
       } catch (err) {
-        console.error('Error fetching notebook:', err);
-        setError('An error occurred while loading the notebook');
+        console.error("Error fetching notebook:", err);
+        setError("An error occurred while loading the notebook");
       } finally {
         setIsLoading(false);
       }
@@ -83,35 +107,36 @@ export default function NotebookDetailPage() {
   // Fetch notebook files
   useEffect(() => {
     if (!notebookId) return;
-    
+
     async function fetchFiles() {
       // Only set loading state if we don't already have files (initial load)
       const isInitialLoad = files.length === 0;
       if (isInitialLoad) {
         setIsLoadingFiles(true);
       }
-      
+
       try {
-        // Make sure notebookId is not undefined
-        if (notebookId) {
-          // Get authenticated Supabase client
-          const authClient = await getSupabaseClient();
-          
-          // If we couldn't get an authenticated client, show an error
-          if (!authClient) {
-            console.error('Authentication error when fetching files');
-            return;
+        // Use executeWithAuth to handle token refresh automatically
+        const filesData = await executeWithAuth(async (client) => {
+          // Ensure notebookId is defined
+          if (!notebookId) {
+            throw new Error("Notebook ID is undefined");
           }
           
-          const result = await getNotebookFiles(notebookId, authClient);
-          if (result.success && result.data) {
-            setFiles(result.data);
-          } else {
-            console.error('Failed to load files');
+          const result = await getNotebookFiles(notebookId, 
+            () => Promise.resolve(client), 
+            refreshToken);
+            
+          if (!result.success || !result.data) {
+            throw new Error("Failed to load files");
           }
-        }
+          return result.data;
+        });
+        
+        setFiles(filesData);
       } catch (err) {
-        console.error('Error fetching files:', err);
+        console.error("Error fetching files:", err);
+        toast?.error("Failed to load files. Please try again.");
       } finally {
         // Only toggle loading state off if we set it on
         if (isInitialLoad) {
@@ -121,12 +146,12 @@ export default function NotebookDetailPage() {
     }
 
     fetchFiles();
-  }, [notebookId, getSupabaseClient]);
+  }, [notebookId, executeWithAuth, refreshToken, toast]);
 
   // Fetch chat sessions
   useEffect(() => {
     if (!notebookId) return;
-    
+
     async function fetchChatSessions() {
       try {
         // Make sure notebookId is not undefined
@@ -134,7 +159,7 @@ export default function NotebookDetailPage() {
           const result = await getNotebookChatSessions(notebookId);
           if (result.success && result.data) {
             setChatSessions(result.data);
-            
+
             // If there are sessions, set the most recent one as current
             if (result.data.length > 0) {
               setCurrentChatSession(result.data[0]);
@@ -142,7 +167,7 @@ export default function NotebookDetailPage() {
           }
         }
       } catch (err) {
-        console.error('Error fetching chat sessions:', err);
+        console.error("Error fetching chat sessions:", err);
       }
     }
 
@@ -152,7 +177,7 @@ export default function NotebookDetailPage() {
   // Fetch messages when current chat session changes
   useEffect(() => {
     if (!currentChatSession) return;
-    
+
     async function fetchMessages() {
       setIsLoadingMessages(true);
       try {
@@ -165,7 +190,7 @@ export default function NotebookDetailPage() {
           }
         }
       } catch (err) {
-        console.error('Error fetching messages:', err);
+        console.error("Error fetching messages:", err);
       } finally {
         setIsLoadingMessages(false);
       }
@@ -180,7 +205,7 @@ export default function NotebookDetailPage() {
     if (messagesEndRef.current) {
       // Use 'auto' behavior for immediate scroll without animation
       // This makes the initial load snap to bottom immediately
-      messagesEndRef.current.scrollIntoView({ behavior: 'auto' });
+      messagesEndRef.current.scrollIntoView({ behavior: "auto" });
     }
   }, [messages]); // Only depend on messages to avoid unnecessary scrolls
 
@@ -188,259 +213,301 @@ export default function NotebookDetailPage() {
   useEffect(() => {
     // Only scroll smoothly when streaming content changes (during active typing)
     if (messagesEndRef.current && streamingContent) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [streamingContent]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!notebookId || !supabaseUserId || !e.target.files || e.target.files.length === 0) return;
-    
-    const file = e.target.files[0];
-    console.log('File selected:', file.name, 'Size:', file.size, 'Type:', file.type);
-    if (file.size > 50 * 1024 * 1024) { // 50MB
-      toast?.error('File size is too large to process');
+    if (
+      !notebookId ||
+      !supabaseUserId ||
+      !e.target.files ||
+      e.target.files.length === 0
+    )
       return;
-    } else if (file.size > 10 * 1024 * 1024) { // 10MB
-      toast('File size is large, it may take a while to process', {
-        icon: '⚠️',
+
+    const file = e.target.files[0];
+    console.log(
+      "File selected:",
+      file.name,
+      "Size:",
+      file.size,
+      "Type:",
+      file.type,
+    );
+    if (file.size > 50 * 1024 * 1024) {
+      // 50MB
+      toast?.error("File size is too large to process");
+      return;
+    } else if (file.size > 10 * 1024 * 1024) {
+      // 10MB
+      toast("File size is large, it may take a while to process", {
+        icon: "⚠️",
         style: {
-          background: '#fffbeb',
-          color: '#92400e',
-          border: '1px solid #f59e0b',
+          background: "#fffbeb",
+          color: "#92400e",
+          border: "1px solid #f59e0b",
         },
         duration: 3500,
       });
-    }    
-    
+    }
+
     // Create a temporary ID to track the uploading state
     const tempId = `temp-${Date.now()}`;
-    
+
     // Add to uploading files state - this will show the upload button as loading
-    setUploadingFiles(prev => {
+    setUploadingFiles((prev) => {
       const newSet = new Set(prev);
       newSet.add(tempId);
       return newSet;
     });
-    
+
     // Switch to files tab to show upload progress
-    setActiveTab('files');
-    
-    try {
-      // Get authenticated Supabase client
-      const authClient = await getSupabaseClient();
-      
-      if (!authClient) {
-        console.error('Failed to get authenticated Supabase client');
-        setError('Authentication error. Please try again or refresh the page.');
-        toast?.error('Authentication error. Please try again or refresh the page.');
-        return;
+    setActiveTab("files");
+
+    // Replace the uploadWithRetry function with this
+    const uploadWithRetry = async (): Promise<any> => {
+      try {
+        // Use our executeWithAuth helper that handles retries and token refresh
+        return await executeWithAuth(async (client) => {
+          const result = await uploadFile(
+            file,
+            false,
+            notebookId,
+            supabaseUserId,
+            () => Promise.resolve(client),
+            refreshToken
+          );
+          
+          if (!result.success) {
+            throw new Error(result.error || "Upload failed");
+          }
+          
+          return result;
+        }, 3); // Allow up to 3 retries for file uploads
+      } catch (err) {
+        console.error("Error uploading file:", err);
+        throw err;
       }
-      
-      // Upload to Supabase
-      const result = await uploadFile(file, notebookId, supabaseUserId, authClient);
-      
+    };
+
+    try {
+      // Start upload with retry logic
+      const result = await uploadWithRetry();
+
       // Remove from uploading files state as soon as the Supabase upload is complete
-      setUploadingFiles(prev => {
+      setUploadingFiles((prev) => {
         const newSet = new Set(prev);
         newSet.delete(tempId);
         return newSet;
       });
-      
+
       if (result.success && result.data) {
         // Add the file to the files list with processing status
         const newFile: ExtendedNotebookFile = {
           ...result.data,
-          isProcessing: result.isProcessing || false
+          isProcessing: result.isProcessing || false,
         };
-        
+
         // Update files array with the new file at the beginning
-        setFiles(prevFiles => [newFile, ...prevFiles]);
-        
+        setFiles((prevFiles) => [newFile, ...prevFiles]);
+
         // Show success notification for the upload
-        toast?.success(result.message || 'File uploaded, AI is now processing...');
-        
+        toast?.success(
+          result.message || "File uploaded, AI is now processing...",
+        );
+
         // Initiate file processing in the background
-        processFile(result.data.id).then(processResult => {
+        processFile(result.data.id).then((processResult) => {
           if (processResult.success) {
-            console.log('Processing success:', processResult.message);
-            
+            console.log("Processing success:", processResult.message);
+
             // Update the file's processing status
-            setFiles(prevFiles => 
-              prevFiles.map(f => 
-                f.id === result.data?.id 
-                  ? { ...f, isProcessing: false } 
-                  : f
-              )
+            setFiles((prevFiles) =>
+              prevFiles.map((f) =>
+                f.id === result.data?.id ? { ...f, isProcessing: false } : f,
+              ),
             );
-            
+
             // Show success notification for completed processing
-            toast?.success('File processing complete!');
+            toast?.success("File processing complete!");
           } else {
-            console.error('Processing error:', processResult.error);
-            
+            console.error("Processing error:", processResult.error);
+
             // Update the file's processing status
-            setFiles(prevFiles => 
-              prevFiles.map(f => 
-                f.id === result.data?.id 
-                  ? { ...f, isProcessing: false } 
-                  : f
-              )
+            setFiles((prevFiles) =>
+              prevFiles.map((f) =>
+                f.id === result.data?.id ? { ...f, isProcessing: false } : f,
+              ),
             );
-            
+
             // Show error notification
             toast?.error(`Processing failed: ${processResult.error}`);
           }
         });
       } else {
-        console.error('File upload failed:', result.error);
-        setError('Failed to upload file');
-        
+        console.error("File upload failed:", result.error);
+        setError("Failed to upload file");
+
         // Show detailed error message based on the error type
         if (result.fileType) {
-          toast?.error(`Unsupported file type: ${result.fileType}. Please try a different file.`);
+          toast?.error(
+            `Unsupported file type: ${result.fileType}. Please try a different file.`,
+          );
         } else {
-          toast?.error(result.error || 'Failed to upload file');
+          toast?.error(result.error || "Failed to upload file");
         }
       }
     } catch (err) {
-      console.error('Error uploading file:', err);
-      setError('An error occurred while uploading the file');
-      toast?.error('Error uploading file');
+      console.error("Error uploading file:", err);
+      setError("An error occurred while uploading the file");
+      toast?.error("Error uploading file");
     } finally {
       // Always clear the file input
       if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        fileInputRef.current.value = "";
       }
+      // Remove from uploading state if still there
+      setUploadingFiles((prev) => {
+        const newSet = new Set(prev);
+        if (newSet.has(tempId)) {
+          newSet.delete(tempId);
+        }
+        return newSet;
+      });
     }
   };
 
   const handleDeleteFile = async (fileId: string) => {
-    console.log('[DEBUG] Starting file deletion process for:', fileId);
-    
+    console.log("Starting file deletion process for:", fileId);
+
     try {
       // Find the file by ID to log its current state
-      const fileToDelete = files.find(file => file.id === fileId);
-      console.log('[DEBUG] Current file state before deletion:', fileToDelete);
-      
+      const fileToDelete = files.find((file) => file.id === fileId);
+      console.log("Current file state before deletion:", fileToDelete);
+
       // If the file is already being processed, don't allow another delete operation
       if (fileToDelete?.isProcessing) {
-        console.log('[DEBUG] File is already being processed, ignoring delete request');
+        console.log(
+          "File is already being processed, ignoring delete request",
+        );
         return;
       }
-      
+
       // Mark the file as processing during deletion
-      setFiles(prevFiles => {
-        const updatedFiles = prevFiles.map(file => 
-          file.id === fileId 
-            ? { ...file, isProcessing: true, isDeletingFile: true } 
-            : file
+      setFiles((prevFiles) => {
+        const updatedFiles = prevFiles.map((file) =>
+          file.id === fileId
+            ? { ...file, isProcessing: true, isDeletingFile: true }
+            : file,
         );
-        console.log('[DEBUG] File state after marking as deleting:', 
-          updatedFiles.find(f => f.id === fileId)
+        console.log(
+          "File state after marking as deleting:",
+          updatedFiles.find((f) => f.id === fileId),
         );
         return updatedFiles;
       });
-      
-      // Get authenticated Supabase client
-      console.log('[DEBUG] Getting authenticated Supabase client');
-      const authClient = await getSupabaseClient();
-      
-      // If we couldn't get an authenticated client, show an error
-      if (!authClient) {
-        console.error('[DEBUG] Authentication failed when trying to delete file');
-        
-        // Restore the file to its previous state
-        setFiles(prevFiles => {
-          const restoredFiles = prevFiles.map(file => 
-            file.id === fileId 
-              ? { ...file, isProcessing: false, isDeletingFile: false } 
-              : file
-          );
-          console.log('[DEBUG] File state after restoring due to auth failure:', 
-            restoredFiles.find(f => f.id === fileId)
-          );
-          return restoredFiles;
-        });
-        
-        setError('Authentication error. Please try again or refresh the page.');
-        return;
-      }
-      
-      console.log('[DEBUG] Calling deleteFile service function');
-      const result = await deleteFile(fileId, authClient);
-      console.log('[DEBUG] deleteFile result:', result);
-      
+
+      // Replace the deleteWithRetry function with this
+      const deleteWithRetry = async (): Promise<any> => {
+        try {
+          // Use our executeWithAuth helper that handles retries and token refresh
+          return await executeWithAuth(async (client) => {
+            const result = await deleteFile(
+              fileId,
+              () => Promise.resolve(client),
+              refreshToken
+            );
+            
+            if (!result.success) {
+              throw new Error(result.error || "Delete failed");
+            }
+            
+            return result;
+          }, 2); // Allow up to 2 retries for file deletion
+        } catch (err) {
+          console.error("Error deleting file:", err);
+          throw err;
+        }
+      };
+
+      // Start deletion with retry logic
+      const result = await deleteWithRetry();
+
       if (result.success) {
         // Only remove the file from the array after successful deletion
         // Use a key-based removal approach to prevent race conditions
-        setFiles(prevFiles => {
-          console.log('[DEBUG] Removing file with ID:', fileId);
-          console.log('[DEBUG] Current file count:', prevFiles.length);
-          
-          const filteredFiles = prevFiles.filter(file => file.id !== fileId);
-          console.log('[DEBUG] Files array after removing deleted file, new count:', filteredFiles.length);
+        setFiles((prevFiles) => {
+          console.log("Removing file with ID:", fileId);
+          console.log("Current file count:", prevFiles.length);
+
+          const filteredFiles = prevFiles.filter((file) => file.id !== fileId);
+          console.log(
+            "Files array after removing deleted file, new count:",
+            filteredFiles.length,
+          );
           return filteredFiles;
         });
-        
-        toast?.success('File deleted successfully');
+
+        toast?.success("File deleted successfully");
       } else {
-        console.error('[DEBUG] File deletion failed with result:', result);
-        
+        console.error("File deletion failed with result:", result);
+
         // Restore the file to its previous state
-        setFiles(prevFiles => {
-          const restoredFiles = prevFiles.map(file => 
-            file.id === fileId 
-              ? { ...file, isProcessing: false, isDeletingFile: false } 
-              : file
+        setFiles((prevFiles) => {
+          const restoredFiles = prevFiles.map((file) =>
+            file.id === fileId
+              ? { ...file, isProcessing: false, isDeletingFile: false }
+              : file,
           );
-          console.log('[DEBUG] File state after restoring due to deletion failure:', 
-            restoredFiles.find(f => f.id === fileId)
+          console.log(
+            "File state after restoring due to deletion failure:",
+            restoredFiles.find((f) => f.id === fileId),
           );
           return restoredFiles;
         });
-        
-        setError('Failed to delete file');
-        toast?.error('Failed to delete file');
+
+        setError("Failed to delete file");
+        toast?.error(result.error || "Failed to delete file");
       }
     } catch (err) {
-      console.error('[DEBUG] Exception during file deletion:', err);
+      console.error("Error in handleDeleteFile:", err);
       
-      // Restore the files array in case of error
-      setFiles(prevFiles => {
-        const restoredFiles = prevFiles.map(file => 
-          file.id === fileId 
-            ? { ...file, isProcessing: false, isDeletingFile: false } 
-            : file
-        );
-        console.log('[DEBUG] File state after restoring due to exception:', 
-          restoredFiles.find(f => f.id === fileId)
+      // Restore the file's state if there was an error
+      setFiles((prevFiles) => {
+        const restoredFiles = prevFiles.map((file) =>
+          file.id === fileId
+            ? { ...file, isProcessing: false, isDeletingFile: false }
+            : file,
         );
         return restoredFiles;
       });
       
-      setError('An error occurred while deleting the file');
-      toast?.error('An error occurred while deleting the file');
-    } finally {
-      console.log('[DEBUG] File deletion process completed for:', fileId);
+      setError("An error occurred while deleting the file");
+      toast?.error("Error deleting file");
     }
   };
 
   const handleCreateSession = async () => {
     if (!notebookId || !supabaseUserId) return;
-    
+
     try {
-      const result = await createChatSession(notebookId, supabaseUserId, 'New Chat');
+      const result = await createChatSession(
+        notebookId,
+        supabaseUserId,
+        "New Chat",
+      );
       if (result.success && result.data) {
         setChatSessions([result.data, ...chatSessions]);
         setCurrentChatSession(result.data);
         setMessages([]);
-        setActiveTab('chats');
+        setActiveTab("chats");
       } else {
-        setError('Failed to create new chat');
+        setError("Failed to create new chat");
       }
     } catch (err) {
-      console.error('Error creating chat session:', err);
-      setError('An error occurred while creating a new chat');
+      console.error("Error creating chat session:", err);
+      setError("An error occurred while creating a new chat");
     }
   };
 
@@ -452,19 +519,25 @@ export default function NotebookDetailPage() {
         setMessages(result.data);
       }
     } catch (err) {
-      console.error('Error refreshing messages:', err);
+      console.error("Error refreshing messages:", err);
     }
   };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!notebookId || !supabaseUserId || !currentChatSession || !inputMessage.trim()) return;
+    if (
+      !notebookId ||
+      !supabaseUserId ||
+      !currentChatSession ||
+      !inputMessage.trim()
+    )
+      return;
 
     const checkedFiles = getCheckedFiles();
-    
+
     const messageText = inputMessage.trim();
-    setInputMessage('');
-    
+    setInputMessage("");
+
     try {
       // Create a temporary user message to display immediately
       const tempUserMessage: ChatMessage = {
@@ -474,101 +547,108 @@ export default function NotebookDetailPage() {
         user_id: supabaseUserId,
         content: messageText,
         is_user: true,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
       };
-      
+
       // Update messages locally first for immediate display
-      setMessages(prevMessages => [...prevMessages, tempUserMessage]);
-      
+      setMessages((prevMessages) => [...prevMessages, tempUserMessage]);
+
       // Scroll to the new message
       setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 50);
-      
+
       // Send user message to backend
       const userMessageResult = await sendChatMessage(
         currentChatSession.id,
         notebookId,
         supabaseUserId,
         messageText,
-        true
+        true,
       );
-      
+
       if (!userMessageResult.success) {
-        setError('Failed to send message');
+        setError("Failed to send message");
         return;
       }
-      
+
       // Start streaming immediately
       setIsStreaming(true);
-      setStreamingContent('');
-      
+      setStreamingContent("");
+
       // Create a simple message array with just the current message
       // This ensures only the exact query text is sent
-      const userOnlyMessage = [{
-        role: 'user' as 'user',
-        content: messageText
-      }];
-      
-      console.log('Sending single user message:', messageText);
-      
+      const userOnlyMessage = [
+        {
+          role: "user" as "user",
+          content: messageText,
+        },
+      ];
+
+      console.log("Sending single user message:", messageText);
+
       // Stream the response
       try {
-        let finalResponse = '';
-        
+        let finalResponse = "";
+
         await streamChatWithGemini(
           userOnlyMessage,
           (content) => {
             setStreamingContent(content);
             finalResponse = content;
           },
-          supabaseUserId
+          supabaseUserId,
         );
-        
-        console.log('Streaming complete. Saving AI message to Supabase');
-        
+
+        console.log("Streaming complete. Saving AI message to Supabase");
+
         // Ensure the final response doesn't contain SSE format before saving
         if (finalResponse.includes('data: {"type":')) {
-          console.warn('Final response contains SSE format. This is unexpected.');
-          
+          console.warn(
+            "Final response contains SSE format. This is unexpected.",
+          );
+
           // Attempt to clean it up
           try {
             // Call our parser to extract just the text
             const cleanResponse = parseStreamingResponseLocally(finalResponse);
-            finalResponse = cleanResponse || 'Error processing response';
+            finalResponse = cleanResponse || "Error processing response";
           } catch (parseError) {
-            console.error('Failed to parse streaming response:', parseError);
-            finalResponse = 'Error processing response';
+            console.error("Failed to parse streaming response:", parseError);
+            finalResponse = "Error processing response";
           }
         }
-        
+
         // After streaming is complete, save the AI message to the database
         const aiMessageResult = await sendChatMessage(
           currentChatSession.id,
           notebookId,
           supabaseUserId,
           finalResponse,
-          false
+          false,
         );
-        
+
         if (aiMessageResult.success) {
-          console.log('AI message saved to Supabase successfully');
-          
+          console.log("AI message saved to Supabase successfully");
+
           // Refresh messages to get both user message and AI response from the database
           await refreshMessages(currentChatSession.id);
         } else {
-          console.error('Failed to save AI message to Supabase:', aiMessageResult.error);
-          setError('Failed to save AI response');
+          console.error(
+            "Failed to save AI message to Supabase:",
+            aiMessageResult.error,
+          );
+          setError("Failed to save AI response");
         }
       } catch (error) {
-        console.error('Error streaming response:', error);
-        setError('Failed to get AI response');
+        console.error("Error streaming response:", error);
+        setError("Failed to get AI response");
       } finally {
         setIsStreaming(false);
       }
     } catch (error) {
-      console.error('Error sending message:', error);
-      setError('Failed to send message');
+      console.error("Error sending message:", error);
+      setError("Failed to send message");
       setIsStreaming(false);
     }
   };
@@ -579,18 +659,22 @@ export default function NotebookDetailPage() {
 
   const handleDeleteSession = async (sessionId: string) => {
     if (!sessionId) return;
-    
+
     setIsDeleting(true);
     try {
       const result = await deleteChatSession(sessionId);
       if (result.success) {
         // Remove the deleted session from the list
-        setChatSessions(chatSessions.filter(session => session.id !== sessionId));
-        
+        setChatSessions(
+          chatSessions.filter((session) => session.id !== sessionId),
+        );
+
         // If the deleted session was the current one, set the first available session as current
         // or set to null if no sessions remain
         if (currentChatSession?.id === sessionId) {
-          const remainingSessions = chatSessions.filter(session => session.id !== sessionId);
+          const remainingSessions = chatSessions.filter(
+            (session) => session.id !== sessionId,
+          );
           if (remainingSessions.length > 0) {
             setCurrentChatSession(remainingSessions[0]);
           } else {
@@ -599,11 +683,11 @@ export default function NotebookDetailPage() {
           }
         }
       } else {
-        setError('Failed to delete chat session');
+        setError("Failed to delete chat session");
       }
     } catch (err) {
-      console.error('Error deleting chat session:', err);
-      setError('An error occurred while deleting the chat session');
+      console.error("Error deleting chat session:", err);
+      setError("An error occurred while deleting the chat session");
     } finally {
       setIsDeleting(false);
       setChatToDelete(null);
@@ -635,48 +719,48 @@ export default function NotebookDetailPage() {
     function removeCommonPrefixes(text: string): string {
       // List of prefixes to check and remove
       const prefixesToRemove = [
-        'Answer:', 
-        'Answer :', 
-        'AI:', 
-        'AI :', 
-        'Assistant:', 
-        'Assistant :'
+        "Answer:",
+        "Answer :",
+        "AI:",
+        "AI :",
+        "Assistant:",
+        "Assistant :",
       ];
-      
+
       // Check for each prefix and remove if found
       for (const prefix of prefixesToRemove) {
         if (text.startsWith(prefix)) {
           return text.substring(prefix.length).trim();
         }
       }
-      
+
       return text;
     }
-    
-    let extractedText = '';
-    
+
+    let extractedText = "";
+
     try {
       // Split the stream data into lines
-      const lines = streamData.split('\n');
-      
+      const lines = streamData.split("\n");
+
       for (const line of lines) {
         // Skip empty lines
         if (!line.trim()) continue;
-        
+
         // Check if line is a data line
-        if (line.startsWith('data:')) {
+        if (line.startsWith("data:")) {
           try {
             // Extract the JSON part
             const jsonStr = line.substring(5).trim();
             const data = JSON.parse(jsonStr);
-            
+
             // If it's a token, add it to the extracted text
-            if (data.type === 'token' && data.data) {
+            if (data.type === "token" && data.data) {
               extractedText += data.data;
             }
           } catch (e) {
             // If JSON parsing fails, just ignore this line
-            console.warn('Failed to parse JSON in stream data line:', line);
+            console.warn("Failed to parse JSON in stream data line:", line);
           }
         } else {
           // If it's not in SSE format, it's likely already parsed content
@@ -684,19 +768,29 @@ export default function NotebookDetailPage() {
           break;
         }
       }
-      
+
       // Determine which text to process (either parsed or original)
       let textToProcess = extractedText.trim() || streamData.trim();
-      
+
       // Remove common prefixes
       return removeCommonPrefixes(textToProcess);
     } catch (error) {
-      console.error('Error parsing streaming response locally:', error);
-      
+      console.error("Error parsing streaming response locally:", error);
+
       // Even if parsing fails, try to remove common prefixes
       return removeCommonPrefixes(streamData.trim());
     }
   }
+
+  // Toggle function for notes panel
+  const toggleNotesPanel = () => {
+    setIsNotesPanelExpanded(!isNotesPanelExpanded);
+  };
+
+  // Toggle function for sandbox panel
+  const toggleSandbox = () => {
+    setIsSandboxExpanded(!isSandboxExpanded);
+  };
 
   if (isUserLoading || isLoading) {
     return (
@@ -705,7 +799,7 @@ export default function NotebookDetailPage() {
       </div>
     );
   }
-  
+
   if (!notebook) {
     return (
       <div className="flex flex-col min-h-screen">
@@ -714,8 +808,8 @@ export default function NotebookDetailPage() {
           <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
             Notebook not found or you don't have access to it.
           </div>
-          <Link 
-            to="/notebooks" 
+          <Link
+            to="/notebooks"
             className="text-black dark:text-white hover:underline"
           >
             &larr; Back to Notebooks
@@ -726,59 +820,88 @@ export default function NotebookDetailPage() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-background">
-      {/* <Header /> */}
-      
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal 
-        isOpen={showDeleteConfirmation}
-        isDeleting={isDeleting}
-        onCancel={cancelDeleteSession}
-        onConfirm={() => chatToDelete && handleDeleteSession(chatToDelete)}
+    <div className="flex h-screen overflow-hidden">
+      <Sidebar
+        userId={supabaseUserId || ""}
+        isCollapsed={!sidebarExpanded}
+        onToggleCollapse={toggleSidebar}
+        selectedFolderId={null}
+        onSelectFolder={() => {}}
+        mode="notebook"
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        files={files}
+        chatSessions={chatSessions}
+        isLoadingFiles={isLoadingFiles}
+        currentChatSession={currentChatSession}
+        handleCreateSession={handleCreateSession}
+        handleDeleteFile={handleDeleteFile}
+        handleEditChatTitle={handleEditChatTitle}
+        confirmDeleteSession={confirmDeleteSession}
+        setCurrentChatSession={setCurrentChatSession}
+        handleFileUpload={handleFileUpload}
+        notebookName={notebook?.title || ""}
+        uploadingFiles={uploadingFiles}
+        toggleNotesPanel={toggleNotesPanel}
+        isNotesPanelExpanded={isNotesPanelExpanded}
+        toggleSandbox={toggleSandbox}
+        isSandboxExpanded={isSandboxExpanded}
       />
-      
-      <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar Component */}
-        <Sidebar 
-          userId={supabaseUserId || ''}
-          isCollapsed={!sidebarExpanded}
-          onToggleCollapse={toggleSidebar}
-          selectedFolderId={null}
-          onSelectFolder={() => {}}
-          mode="notebook"
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          files={files}
-          chatSessions={chatSessions}
-          isLoadingFiles={isLoadingFiles}
-          currentChatSession={currentChatSession}
-          handleCreateSession={handleCreateSession}
-          handleDeleteFile={handleDeleteFile}
-          handleEditChatTitle={handleEditChatTitle}
-          confirmDeleteSession={confirmDeleteSession}
-          setCurrentChatSession={setCurrentChatSession}
-          handleFileUpload={handleFileUpload}
-          notebookName={notebook.title}
-          uploadingFiles={uploadingFiles}
-        />
-        
-        {/* Main Content - Chat */}
-        <div className="flex-1 flex flex-col overflow-hidden relative">
-          {/* Chat Interface Component */}
-          <ChatInterface 
-            currentChatSession={currentChatSession}
-            messages={messages}
-            isLoadingMessages={isLoadingMessages}
-            isStreaming={isStreaming}
-            streamingContent={streamingContent}
-            inputMessage={inputMessage}
-            setInputMessage={setInputMessage}
-            handleSendMessage={handleSendMessage}
-            handleCreateSession={handleCreateSession}
-            messagesEndRef={messagesEndRef}
+
+      <div className="flex-1 overflow-hidden flex flex-col">
+        <main className="flex-1 overflow-hidden">
+          <ResizablePanel
+            leftPanel={
+              <ChatInterface
+                currentChatSession={currentChatSession}
+                messages={messages}
+                isLoadingMessages={isLoadingMessages}
+                isStreaming={isStreaming}
+                streamingContent={streamingContent}
+                inputMessage={inputMessage}
+                setInputMessage={setInputMessage}
+                handleSendMessage={handleSendMessage}
+                handleCreateSession={handleCreateSession}
+                messagesEndRef={messagesEndRef}
+              />
+            }
+            rightPanel={
+              isNotesPanelExpanded ? (
+                <NotesPanel
+                  notebookId={notebookId || ""}
+                  isExpanded={isNotesPanelExpanded}
+                  onToggleExpand={toggleNotesPanel}
+                />
+              ) : isSandboxExpanded ? (
+                <Sandbox />
+              ) : null
+            }
+            isRightPanelExpanded={isNotesPanelExpanded || isSandboxExpanded}
+            defaultRightPanelWidth={50}
+            minRightPanelWidth={20}
+            maxRightPanelWidth={70}
           />
-        </div>
+        </main>
       </div>
+
+      {/* File input for uploads */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        className="hidden"
+        onChange={handleFileUpload}
+        accept=".pdf,.txt,.md,.csv,.pptx,.docx,.xlsx,.mp3,.wav,.mp4,.webm,image/*"
+      />
+
+      {/* Confirmation dialog */}
+      {showDeleteConfirmation && (
+        <DeleteConfirmationModal
+          isOpen={showDeleteConfirmation}
+          isDeleting={isDeleting}
+          onCancel={cancelDeleteSession}
+          onConfirm={() => chatToDelete && handleDeleteSession(chatToDelete)}
+        />
+      )}
     </div>
   );
-} 
+}

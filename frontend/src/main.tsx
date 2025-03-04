@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import App from "./App.tsx";
 import Header from "./components/Header.tsx";
+import { ThemeProvider } from "./contexts/ThemeContext.tsx";
 import "./index.css";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
@@ -40,8 +41,10 @@ createRoot(document.getElementById("root")!).render(
           },
         }}
       >
-        <Header />
-        <App />
+        <ThemeProvider>
+          <Header />
+          <App />
+        </ThemeProvider>
       </ClerkProvider>
     </QueryClientProvider>
   </StrictMode>,

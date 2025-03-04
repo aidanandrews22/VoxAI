@@ -200,6 +200,7 @@ class LLMService:
             for i, doc in enumerate(context):
                 # Get the source/filename
                 source = doc.get("source", "Unknown file")
+                logger.info(f"DEBUG - Source: {source}")
                 
                 # Get text content
                 text_content = doc.get("text", "No content available")
@@ -208,7 +209,10 @@ class LLMService:
                 metadata = doc.get("metadata", {})
                 
                 # Get description from metadata if available
-                description = metadata.get("description", "No description available")
+                if source.endswith(".json"):
+                    description = metadata.get("description", "This is a notes file that the user wrote. The user has written this note themselves.")
+                else:
+                    description = metadata.get("description", "No description available")
                 
                 # Process additional_info if it's a JSON string
                 additional_info_str = ""
@@ -295,6 +299,7 @@ class LLMService:
             
             # Log the total prompt length
             logger.info(f"DEBUG - Total prompt length: {len(prompt)} characters")
+            logger.info(f"DEBUG - Full prompt including context: {prompt}")
             
             result = None
             

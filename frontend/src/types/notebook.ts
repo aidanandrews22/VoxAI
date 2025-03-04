@@ -9,7 +9,8 @@ export const NotebookFileSchema = z.object({
   file_path: z.string(),
   file_type: z.string(),
   file_size: z.number().int().positive(),
-  created_at: z.string().datetime()
+  is_note: z.boolean(),
+  created_at: z.string().datetime(),
 });
 
 // Type derived from the schema
@@ -22,7 +23,7 @@ export const NotebookSchema = z.object({
   title: z.string(),
   description: z.string().optional(),
   created_at: z.string().datetime(),
-  updated_at: z.string().datetime()
+  updated_at: z.string().datetime(),
 });
 
 // Type derived from the schema
@@ -54,7 +55,7 @@ export const FolderSchema: FolderSchemaType = z.object({
   // Virtual properties for UI state
   isExpanded: z.boolean().optional(),
   children: z.array(z.lazy(() => FolderSchema)).optional(),
-  notebooks: z.array(NotebookSchema).optional()
+  notebooks: z.array(NotebookSchema).optional(),
 });
 
 // Type derived from the schema
@@ -64,7 +65,7 @@ export type Folder = z.infer<typeof FolderSchema>;
 export const FolderNotebookSchema = z.object({
   folder_id: z.string().uuid(),
   notebook_id: z.string().uuid(),
-  created_at: z.string().datetime()
+  created_at: z.string().datetime(),
 });
 
 // Type derived from the schema

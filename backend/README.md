@@ -77,19 +77,19 @@ This will process each file in the `test_files` directory with the appropriate p
 
 ## API Design Principles
 
-1) Minimize payload sizes. 2) Use async endpoints for I/O bound operations. 3) Implement caching strategies for repetitive requests. 4) Batch operations when possible. 5) Implement proper error handling with standardized response formats. 6) Use dependency injection for services. 7) Version all API endpoints. 8) Document APIs with OpenAPI/Swagger.
+1. Minimize payload sizes. 2) Use async endpoints for I/O bound operations. 3) Implement caching strategies for repetitive requests. 4) Batch operations when possible. 5) Implement proper error handling with standardized response formats. 6) Use dependency injection for services. 7) Version all API endpoints. 8) Document APIs with OpenAPI/Swagger.
 
 ## Performance Optimization
 
-1) Preload and cache embeddings at startup. 2) Use connection pooling for database access. 3) Implement background tasks for non-blocking operations. 4) Utilize async I/O for external calls. 5) Employ data streaming for large responses. 6) Minimize database round-trips by batching queries. 7) Implement proper indexing for vector search. 8) Use process-based parallelism for CPU-bound tasks.
+1. Preload and cache embeddings at startup. 2) Use connection pooling for database access. 3) Implement background tasks for non-blocking operations. 4) Utilize async I/O for external calls. 5) Employ data streaming for large responses. 6) Minimize database round-trips by batching queries. 7) Implement proper indexing for vector search. 8) Use process-based parallelism for CPU-bound tasks.
 
 ## Database
 
-1) Utilize Pinecone's in-house embedding models for vector generation and storage with optimal dimensionality and metric type. 2) Apply effective chunking strategies with context windows to enhance retrieval quality. 3) Leverage hybrid search by combining Pinecone's vector similarity and metadata filtering. 4) Organize data efficiently using namespaces for different document types. 5) Optimize ingestion with batched upsert operations. 6) Implement TTL for managing ephemeral vectors effectively. 7) Tune retrieval performance by adjusting top_k values for latency optimization. 8) Enhance search relevance with query preprocessing before embedding.
+1. Utilize Pinecone's in-house embedding models for vector generation and storage with optimal dimensionality and metric type. 2) Apply effective chunking strategies with context windows to enhance retrieval quality. 3) Leverage hybrid search by combining Pinecone's vector similarity and metadata filtering. 4) Organize data efficiently using namespaces for different document types. 5) Optimize ingestion with batched upsert operations. 6) Implement TTL for managing ephemeral vectors effectively. 7) Tune retrieval performance by adjusting top_k values for latency optimization. 8) Enhance search relevance with query preprocessing before embedding.
 
 ## Security Best Practices
 
-1) Implement JWT-based authentication with Supabase. 2) Use CORS with appropriate origins. 3) Implement rate limiting. 4) Validate all input data with Pydantic. 5) Sanitize user inputs. 6) Implement proper error handling that doesn't leak sensitive information. 7) Use environmental variables for secrets. 8) Follow principle of least privilege for database access.
+1. Implement JWT-based authentication with Supabase. 2) Use CORS with appropriate origins. 3) Implement rate limiting. 4) Validate all input data with Pydantic. 5) Sanitize user inputs. 6) Implement proper error handling that doesn't leak sensitive information. 7) Use environmental variables for secrets. 8) Follow principle of least privilege for database access.
 
 ## Running the Application
 

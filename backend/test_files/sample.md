@@ -1,9 +1,10 @@
 # 📄 Document Extraction for RAG Systems
-> *Solving the challenge of extracting meaningful content from diverse file formats*
 
-While building the Voxed app I stumbled upon a rather daunting task. I needed a way to ingest **hundreds of file types**, and embed their contents for RAG. However, this is easier said than done. Due to file diversity, most file types don't actually provide meaningful information in practice. 
+> _Solving the challenge of extracting meaningful content from diverse file formats_
 
-For example, I tried to upload a PDF my teacher uploaded to canvas into one of my class notebooks on Voxed but the PDF didn't actually contain any OCR extractable text. Instead the text was in images. Along with that there where also diagrams and other visuals that needed to be handled. 
+While building the Voxed app I stumbled upon a rather daunting task. I needed a way to ingest **hundreds of file types**, and embed their contents for RAG. However, this is easier said than done. Due to file diversity, most file types don't actually provide meaningful information in practice.
+
+For example, I tried to upload a PDF my teacher uploaded to canvas into one of my class notebooks on Voxed but the PDF didn't actually contain any OCR extractable text. Instead the text was in images. Along with that there where also diagrams and other visuals that needed to be handled.
 
 But enough rambling let's actually explore the solution...
 
@@ -18,14 +19,14 @@ Often times (especially in education), documents have embedded visuals and diagr
 <div align="center">
 
 ![nested image in pdf ex.1](https://aidanandrews22.github.io/content/images/extraction/img1.png)
-*Here you can see there is nested text and image in the pdf.*
+_Here you can see there is nested text and image in the pdf._
 
 </div>
 
 <div align="center">
 
 ![nested image in pdf ex.2](https://aidanandrews22.github.io/content/images/extraction/img2.png)
-*Here there is just an image (with nested text).*
+_Here there is just an image (with nested text)._
 
 </div>
 
@@ -35,43 +36,43 @@ Now we need a way to meaningfully extract the contents of both. Its actually pre
 async def process_pdf_for_rag(file_content: bytes) -> str:
     """
     Extract text and image content from PDF for RAG systems using PyMuPDF and Gemini.
-    
+
     Args:
         file_content: Raw PDF file content bytes
-        
+
     Returns:
         str: Structured text content with image descriptions
     """
     try:
         # Open PDF document
         pdf_document = fitz.open(stream=file_content, filetype="pdf")
-        
+
         full_text = []
-        
+
         # Process each page
         for page_num in range(len(pdf_document)):
             page = pdf_document[page_num]
-            
+
             # Extract text from page
             page_text = page.get_text()
-            
+
             # Extract images with their positions
             image_info = await _extract_images_with_positions(page)
-            
+
             # Combine text and processed images in proper sequence
             page_content = [f"[PAGE {page_num + 1}]"]
-            
+
             if page_text.strip():
                 page_content.append(page_text)
-            
+
             # Process images with Gemini Vision API
             for img, _, _ in image_info:
                 img_text = await _extract_text_and_description_from_image(img)
                 if img_text:
                     page_content.append(f"[IMAGE CONTENT]\n{img_text}\n[/IMAGE CONTENT]")
-            
+
             full_text.append("\n\n".join(page_content))
-        
+
         pdf_document.close()
         return "\n\n".join(full_text)
     except Exception as e:
@@ -80,6 +81,7 @@ async def process_pdf_for_rag(file_content: bytes) -> str:
 ```
 
 > ### ⚠️ Important Note
+>
 > Make sure you maintain the document ordering and structuring when extracting text
 
 ---
@@ -132,29 +134,28 @@ In summary, this image shows a sequence of convolutional layers with residual co
 [EXTRACTED TEXT]
 ResNet
 •
-Directly performing 3×3 
-convolutions with 256 feature maps 
-at input and output: 
+Directly performing 3×3
+convolutions with 256 feature maps
+at input and output:
 256×256×3×3 ≈ 600𝐾 operations
 •
-Using 1×1 convolutions to reduce 
-256 to 64 feature maps, followed by 
-3×3 convolutions, followed by 1×1 
-convolutions to expand back to 256 
+Using 1×1 convolutions to reduce
+256 to 64 feature maps, followed by
+3×3 convolutions, followed by 1×1
+convolutions to expand back to 256
 maps:
 256×64×1×1 ≈ 16𝐾
 64×64×3×3 ≈ 36𝐾
 64×256×1×1 ≈ 16𝐾
 Total ≈70𝐾
-Deeper residual module 
+Deeper residual module
 (bottleneck)
-K. He, X. Zhang, S. Ren, and J. Sun, Deep Residual Learning for Image 
+K. He, X. Zhang, S. Ren, and J. Sun, Deep Residual Learning for Image
 Recognition, CVPR 2016 (Best Paper)
 [EXTRACTED TEXT END]
 ```
 
 </details>
-
 
 ---
 
@@ -170,4 +171,3 @@ Recognition, CVPR 2016 (Best Paper)
 <h3>Want to learn more about document extraction?</h3>
 <p>Check out the <a href="https://github.com/aidanandrews22/VoxAI">Voxed project on GitHub</a></p>
 </div>
-

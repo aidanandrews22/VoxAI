@@ -1,0 +1,346 @@
+/* BlockNote customizations */
+.notes-panel .bn-container {
+  height: 100%;
+  border: none;
+  background-color: transparent;
+}
+
+/* BlockNote Theming with adaptive colors from index.css */
+
+/* Base theme that applies to all modes */
+.bn-container[data-voxai-theme] {
+  /* Typography */
+  --bn-font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  --bn-border-radius: 8px;
+
+  /* Apply theme transitions for smooth changes */
+  transition: var(--transition-theme);
+}
+
+/* Adaptive theme that changes based on system/force preference */
+html.color-scheme-adaptive .bn-container[data-voxai-theme],
+html:not(.force-light):not(.force-dark) .bn-container[data-voxai-theme] {
+  /* Main editor colors */
+  --bn-colors-editor-text: var(--color-text);
+  --bn-colors-editor-background: var(--color-background);
+
+  /* Menu and toolbar colors */
+  --bn-colors-menu-text: var(--color-text);
+  --bn-colors-menu-background: var(--color-card);
+  --bn-colors-tooltip-text: var(--color-text);
+  --bn-colors-tooltip-background: var(--color-background);
+
+  /* Interactive states */
+  --bn-colors-hovered-text: var(--color-text);
+  --bn-colors-hovered-background: var(--color-hover);
+  --bn-colors-selected-text: #ffffff;
+  --bn-colors-selected-background: var(--color-primary);
+  --bn-colors-disabled-text: var(--color-text);
+  --bn-colors-disabled-background: var(--color-hover);
+
+  /* UI elements */
+  --bn-colors-shadow: rgba(0, 0, 0, 0.1);
+  --bn-colors-border: var(--color-border);
+  --bn-colors-side-menu: var(--color-border);
+}
+
+/* Forced light theme */
+html.force-light .bn-container[data-voxai-theme] {
+  /* Main editor colors */
+  --bn-colors-editor-text: var(--color-text);
+  --bn-colors-editor-background: var(--color-background);
+
+  /* Menu and toolbar colors */
+  --bn-colors-menu-text: var(--color-text);
+  --bn-colors-menu-background: var(--color-card);
+  --bn-colors-tooltip-text: var(--color-text);
+  --bn-colors-tooltip-background: var(--color-background);
+
+  /* Interactive states */
+  --bn-colors-hovered-text: var(--color-text);
+  --bn-colors-hovered-background: var(--color-hover);
+  --bn-colors-selected-text: #ffffff;
+  --bn-colors-selected-background: var(--color-primary);
+  --bn-colors-disabled-text: var(--color-text);
+  --bn-colors-disabled-background: var(--color-hover);
+
+  /* UI elements */
+  --bn-colors-shadow: rgba(0, 0, 0, 0.1);
+  --bn-colors-border: var(--color-border);
+  --bn-colors-side-menu: var(--color-border);
+}
+
+/* Forced dark theme */
+html.force-dark .bn-container[data-voxai-theme] {
+  /* Main editor colors */
+  --bn-colors-editor-text: var(--color-text);
+  --bn-colors-editor-background: var(--color-background);
+
+  /* Menu and toolbar colors */
+  --bn-colors-menu-text: var(--color-text);
+  --bn-colors-menu-background: var(--color-card);
+  --bn-colors-tooltip-text: var(--color-text);
+  --bn-colors-tooltip-background: var(--color-background);
+
+  /* Interactive states */
+  --bn-colors-hovered-text: var(--color-text);
+  --bn-colors-hovered-background: var(--color-hover);
+  --bn-colors-selected-text: #ffffff;
+  --bn-colors-selected-background: var(--color-primary);
+  --bn-colors-disabled-text: var(--color-text);
+  --bn-colors-disabled-background: var(--color-hover);
+
+  /* UI elements */
+  --bn-colors-shadow: rgba(0, 0, 0, 0.3);
+  --bn-colors-border: var(--color-border);
+  --bn-colors-side-menu: var(--color-border);
+}
+
+/* Customize toolbar */
+.notes-panel .bn-toolbar {
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-background);
+  transition: var(--transition-theme);
+}
+
+/* Customize content area */
+.notes-panel .bn-editor {
+  padding: 16px;
+  overflow-y: auto;
+  color: var(--color-text);
+  transition: var(--transition-theme);
+}
+
+/* Style BlockNote side menu and buttons */
+.bn-side-menu {
+  color: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Target the buttons in the side menu */
+.bn-side-menu .bn-button {
+  color: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Target SVG icons specifically */
+.bn-side-menu .bn-button svg {
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* ======= TARGETED SVG STYLING (ONLY FOR BLOCKNOTE) ======= */
+
+/* Only target SVGs within BlockNote components */
+.bn-container svg,
+.bn-editor svg,
+.bn-toolbar svg,
+.bn-side-menu svg,
+.bn-table-handle svg {
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Handle paths in BlockNote SVGs */
+.bn-container svg path,
+.bn-editor svg path,
+.bn-toolbar svg path,
+.bn-side-menu svg path,
+.bn-table-handle svg path {
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Special case for SVG paths with fill="none" attribute in BlockNote */
+.bn-container svg path[fill="none"],
+.bn-editor svg path[fill="none"],
+.bn-toolbar svg path[fill="none"],
+.bn-side-menu svg path[fill="none"],
+.bn-table-handle svg path[fill="none"] {
+  fill: none !important;
+}
+
+/* Target only BlockNote related floating UI */
+[data-floating-ui-focusable] .bn-side-menu svg,
+[data-floating-ui-focusable] .bn-table-handle svg {
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Target specific class combinations only in BlockNote context */
+.bn-container [class*="mantine-"] svg,
+.notes-panel [class*="mantine-"] svg,
+[data-floating-ui-focusable] [class*="mantine-"] svg {
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Target the specific floating UI component for table handles */
+div[style*="transform"][style*="will-change: transform"] .bn-table-handle svg,
+div[style*="transform"][style*="will-change: transform"]
+  button[style*="transform: rotate"]
+  svg,
+[data-floating-ui-focusable]
+  button[style*="--button-color: var(--mantine-color-white)"]
+  svg {
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Specifically target the example HTML structure */
+div[style*="display: flex"][style*="transition-property: opacity"][style*="position: absolute"]
+  svg,
+div[style*="display: flex"][style*="transition-property: opacity"][style*="will-change: transform"]
+  svg,
+.bn-table-handle[style*="transform: rotate"] svg {
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Only override button colors when directly related to BlockNote */
+.bn-container [style*="--button-color: var(--mantine-color-white)"],
+.notes-panel [style*="--button-color: var(--mantine-color-white)"],
+.bn-table-handle[style*="--button-color: var(--mantine-color-white)"],
+[data-floating-ui-focusable]
+  [style*="--button-color: var(--mantine-color-white)"] {
+  --button-color: var(--color-text) !important;
+}
+
+/* Handle Mantine class patterns but only in BlockNote context */
+.bn-container [class*="m_"][class*="mantine-"] svg,
+.notes-panel [class*="m_"][class*="mantine-"] svg,
+[data-floating-ui-focusable] [class*="m_"][class*="mantine-"] svg {
+  color: var(--color-text) !important;
+  fill: var(--color-text) !important;
+  stroke: var(--color-text) !important;
+  transition: var(--transition-theme);
+}
+
+/* Hover states for buttons */
+.bn-side-menu .bn-button:hover {
+  background-color: var(--color-hover) !important;
+}
+
+/* Utility classes for transitions */
+.transition-width {
+  transition-property: width;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Animation for expand/collapse */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Placeholder text for empty content div */
+.bn-block-content[data-is-empty-and-focused="true"] p.bn-inline-content::before {
+  color: var(--text-muted);
+}
+
+/* Adaptive color scheme (system preference) */
+html.color-scheme-adaptive .bn-block-content[data-is-empty-and-focused="true"] p.bn-inline-content::before {
+  color: var(--text-muted);
+}
+
+/* Force light mode */
+html.force-light .bn-block-content[data-is-empty-and-focused="true"] p.bn-inline-content::before {
+  color: rgba(60, 60, 67, 0.6); /* Light mode muted text */
+}
+
+/* Force dark mode */
+html.force-dark .bn-block-content[data-is-empty-and-focused="true"] p.bn-inline-content::before {
+  color: rgba(235, 235, 245, 0.6); /* Dark mode muted text */
+}
+
+/* Make the widget buttons adaptive to theme */
+.bn-extend-button {
+  --button-color: var(--color-card) !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-text-inverse) !important;
+  transition: var(--transition-theme);
+}
+
+
+/* Ensure the entire widget container has proper theming */
+.table-widgets-container button {
+  background-color: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+  transition: var(--transition-theme);
+}
+
+/* Add a subtle hover effect */
+.bn-extend-button:hover {
+  background-color: var(--color-card-hover) !important;
+}
+
+/* Adaptive color scheme (system preference) */
+html.color-scheme-adaptive .bn-extend-button {
+  --button-color: var(--color-card) !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-text-inverse) !important;
+}
+
+html.color-scheme-adaptive .table-widgets-container button {
+  background-color: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.color-scheme-adaptive .bn-extend-button:hover {
+  background-color: var(--color-card-hover) !important;
+}
+
+/* Force light mode */
+html.force-light .bn-extend-button {
+  --button-color: var(--color-card) !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-text-inverse) !important;
+}
+
+html.force-light .table-widgets-container button {
+  background-color: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.force-light .bn-extend-button:hover {
+  background-color: var(--color-card-hover) !important;
+}
+
+/* Force dark mode */
+html.force-dark .bn-extend-button {
+  --button-color: var(--color-card) !important;
+  background-color: var(--color-card) !important;
+  color: var(--color-text-inverse) !important;
+}
+
+html.force-dark .table-widgets-container button {
+  background-color: var(--color-card) !important;
+  border-color: var(--color-border) !important;
+}
+
+html.force-dark .bn-extend-button:hover {
+  background-color: var(--color-card-hover) !important;
+}

@@ -201,7 +201,9 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
                 # Handle user_id if provided to get toggled files
                 if request.user_id:
                     # Get pinecone_ids from user's toggled files
-                    pinecone_ids = await supabase_client.get_user_toggled_files(request.user_id)
+                    output_dict = await supabase_client.get_user_toggled_files(request.user_id)
+                    pinecone_ids = output_dict[True]
+                    file_ids = output_dict[False]
                     
                     # First get all vector IDs that match the prefixes
                     if pinecone_ids:
@@ -215,14 +217,19 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
                         if vector_ids:
                             # Use the helper method to create a properly formatted filter
                             filter_dict = await pinecone_client.create_id_filter(vector_ids)
+                    if file_ids:
+                        file_content = await supabase_client.get_file_content(file_ids)
+                        logger.info(f"DEBUG - Appending Raw File Content: {file_content}")
+                        raw_context.extend(file_content)
                 
                 # Use the sanitized query
-                raw_context = await rag_service.retrieve_context(
+                raw_context_rag = await rag_service.retrieve_context(
                     query=query,
                     top_k=request.top_k,
                     namespace=request.namespace,
                     filter=filter_dict
                 )
+                raw_context.extend(raw_context_rag)
             
             # Direct pass-through of search results to the LLM
             # Format each result with minimal processing
@@ -235,15 +242,14 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
                 context_entry = {
                     "text": metadata.get("text_chunk", doc.get("text", "")),
                     "score": doc.get("score", 0.0),
-                    "file_id": metadata.get("file_id", ""),
-                    "file_path": metadata.get("file_path", ""),
-                    "source": metadata.get("source", "Unknown"),
+                    "file_id": metadata.get("file_id", doc.get("file_id", "")),
+                    "file_path": metadata.get("file_path", doc.get("file_path", "")),
+                    "source": doc.get("source", metadata.get("source", "Unknown")),
                     "metadata": metadata
                 }
                 
                 # Add to context
-                context.append(context_entry)
-            
+                context.append(context_entry)            
             # Log the final context count
             logger.info(f"Final context count: {len(context)} documents")
             
@@ -263,6 +269,9 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
             # Send sources as the first chunk
             sources_json = json.dumps({"type": "sources", "data": sources})
             yield f"data: {sources_json}\n\n"
+
+            
+            logger.info(f"DEBUG - Streaming answer with context: {context}")
             
             # Stream the answer
             answer_stream = await rag_service.generate_answer(

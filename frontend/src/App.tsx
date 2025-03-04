@@ -15,29 +15,55 @@ import SignUpPage from "./pages/auth/SignUp";
 import NotebooksPage from "./pages/notebooks/Notebooks";
 import NotebookDetailPage from "./pages/notebooks/NotebookDetail";
 import { UserProvider } from "./contexts/UserContext";
-import { Toaster } from 'react-hot-toast';
+import { Toaster } from "react-hot-toast";
+import Sandbox from "./components/Sandbox";
+import { useTheme } from "./contexts/ThemeContext";
+import TokenRefresher from "./components/TokenRefresher";
 
 export default function App() {
+  // Get current theme from our context
+  const { theme } = useTheme();
+  
+  // Determine toast styling based on theme
+  const isDark = theme === "dark";
+  
   return (
     <UserProvider>
+      <SignedIn>
+        <TokenRefresher />
+      </SignedIn>
+      
       <Router>
-        <Toaster position="top-center" toastOptions={{
-          // Styling for toast notifications
-          style: {
-            background: '#ffffff',
-            color: '#000000',
-            border: '1px solid #000000',
-          },
-          // Default toast durations
-          duration: 3000,
-          // Custom toast type styling
-          success: {
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            // Styling for toast notifications based on current theme
+            style: {
+              background: isDark ? "#333333" : "#ffffff",
+              color: isDark ? "#ffffff" : "#000000",
+              border: isDark ? "1px solid #555555" : "1px solid #000000",
+            },
+            // Default toast durations
             duration: 3000,
-          },
-          error: {
-            duration: 4000,
-          },
-        }} />
+            // Custom toast type styling
+            success: {
+              duration: 3000,
+              style: {
+                background: isDark ? "#1e3a2f" : "#edf7ed",
+                border: isDark ? "1px solid #2e5a4e" : "1px solid #c3e6cb",
+                color: isDark ? "#ffffff" : "#000000",
+              },
+            },
+            error: {
+              duration: 4000,
+              style: {
+                background: isDark ? "#3e2a2a" : "#f8d7da",
+                border: isDark ? "1px solid #5e3a3a" : "1px solid #f5c6cb",
+                color: isDark ? "#ffffff" : "#000000",
+              },
+            },
+          }}
+        />
         <Routes>
           <Route
             path="/sign-in"
@@ -53,6 +79,14 @@ export default function App() {
               <SignedOut>
                 <SignUpPage />
               </SignedOut>
+            }
+          />
+          <Route
+            path="/sandbox"
+            element={
+              <SignedIn>
+                <Sandbox />
+              </SignedIn>
             }
           />
           <Route

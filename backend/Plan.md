@@ -5,37 +5,44 @@
 All this can be done in one class that takes in the filetype and file path:
 
 - [ ] **Audio Processing Module**
-   - Handles: audio/mpeg, audio/wav, audio/mp4, audio/webm
-   - Functionality: Audio transcription to convert spoken content to text
+
+  - Handles: audio/mpeg, audio/wav, audio/mp4, audio/webm
+  - Functionality: Audio transcription to convert spoken content to text
 
 - [ ] **Document Extraction Module**
-   - Handles: application/pdf, text/plain, text/markdown, text/csv, application/vnd.openxmlformats-officedocument.wordprocessingml.document
-   - Functionality: Extract text content while preserving structure
-   - Need to use image to text for pdf files aswell (maybe have some way to determine if necessary)
+
+  - Handles: application/pdf, text/plain, text/markdown, text/csv, application/vnd.openxmlformats-officedocument.wordprocessingml.document
+  - Functionality: Extract text content while preserving structure
+  - Need to use image to text for pdf files aswell (maybe have some way to determine if necessary)
 
 - [ ] **Spreadsheet Processing Module**
-   - Handles: text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
-   - Functionality: Extract tabular data and convert to textual representation
+
+  - Handles: text/csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+  - Functionality: Extract tabular data and convert to textual representation
 
 - [ ] **Presentation Processing Module**
-   - Handles: application/vnd.openxmlformats-officedocument.presentationml.presentation
-   - Functionality: Extract text from slides and capture text from embedded images using image-to-text
+
+  - Handles: application/vnd.openxmlformats-officedocument.presentationml.presentation
+  - Functionality: Extract text from slides and capture text from embedded images using image-to-text
 
 - [ ] **Image Analysis Module**
-   - Handles: image/jpeg, image/png, image/gif, image/webp
-   - Functionality: Image-to-text conversion to generate descriptions of visual content
+
+  - Handles: image/jpeg, image/png, image/gif, image/webp
+  - Functionality: Image-to-text conversion to generate descriptions of visual content
 
 - [ ] **Video Processing Module**
-   - Handles: video/mp4, video/webm
-   - Functionality: Extract audio track for transcription and potentially capture frame-by-frame images for image-to-text
+
+  - Handles: video/mp4, video/webm
+  - Functionality: Extract audio track for transcription and potentially capture frame-by-frame images for image-to-text
 
 - [ ] **Text Normalization and Indexing Module**
-   - Takes output from all other modules and prepares it for embedding/vectorization
-   - Handles consistent formatting, cleaning, and chunking across all sources
+  - Takes output from all other modules and prepares it for embedding/vectorization
+  - Handles consistent formatting, cleaning, and chunking across all sources
 
 ### Phase 1 notes:
+
 ```
-For images and embedded images (in pdf or powerpoint, or etc.) use google vision. Use PyMuPDF for image and text extraction from pdf. Use python-docx to extract text from Word (.docx) documents. use markdown to convert Markdown to plain text. Use pandas for csv. Use openpyxl for excel .xlsx and xlrd for .xls. Use python-pptx for powerpoints .pptx and use google vision for nested images. Use ffmpeg-python to convert video to audio and OpenCV to extract frames from video for google vision. 
+For images and embedded images (in pdf or powerpoint, or etc.) use google vision. Use PyMuPDF for image and text extraction from pdf. Use python-docx to extract text from Word (.docx) documents. use markdown to convert Markdown to plain text. Use pandas for csv. Use openpyxl for excel .xlsx and xlrd for .xls. Use python-pptx for powerpoints .pptx and use google vision for nested images. Use ffmpeg-python to convert video to audio and OpenCV to extract frames from video for google vision.
 
 Use whisper+ffmpeg for video/audio formats:
 import whisper
@@ -45,11 +52,11 @@ def convert_audio(input_file, output_file):
     command = [
         'ffmpeg',
         '-i', input_file,
-        '-ac', '1', 
+        '-ac', '1',
         '-ar', '16000',
         output_file
     ]
-    
+
     subprocess.run(command, check=True)
 
 convert_audio('input.*', 'output.wav')
@@ -161,7 +168,6 @@ accepted inputs:
 'video/mp4'::text,
 'video/webm'::text
 ```
-
 
 ## Phase 2: Fix the query endpoint
 

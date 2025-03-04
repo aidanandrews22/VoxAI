@@ -82,4 +82,3 @@
   - [x] Add comprehensive setup instructions
   - [x] Add usage examples
   - [x] Add performance considerations
-

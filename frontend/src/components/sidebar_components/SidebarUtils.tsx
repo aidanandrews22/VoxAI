@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 
 // Custom hook to detect if screen is mobile
 export const useMediaQuery = (query: string) => {
@@ -11,9 +11,9 @@ export const useMediaQuery = (query: string) => {
     }
 
     const listener = () => setMatches(media.matches);
-    media.addEventListener('change', listener);
-    
-    return () => media.removeEventListener('change', listener);
+    media.addEventListener("change", listener);
+
+    return () => media.removeEventListener("change", listener);
   }, [matches, query]);
 
   return matches;
@@ -38,9 +38,9 @@ export const getFileSize = (size: number) => {
   } else {
     return `${(size / (1024 * 1024 * 1024)).toFixed(2)} GB`;
   }
-}
+};
 
 // Add helper function to update global currentCheckedFiles
 export const updateCheckedFiles = (newCheckedFiles: Set<string>) => {
   currentCheckedFiles = newCheckedFiles;
-}; 
+};

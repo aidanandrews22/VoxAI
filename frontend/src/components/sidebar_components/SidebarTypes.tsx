@@ -5,8 +5,8 @@ import type {
   FileListItemProps,
   ChatSessionItemProps,
   FolderViewProps,
-  NotebookViewProps
-} from '../../types/sidebar';
+  NotebookViewProps,
+} from "../../types/sidebar";
 
 // Re-export all the types for use in other components
 export type {
@@ -16,5 +16,5 @@ export type {
   FileListItemProps,
   ChatSessionItemProps,
   FolderViewProps,
-  NotebookViewProps
-}; 
+  NotebookViewProps,
+};

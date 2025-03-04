@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface DeleteConfirmationModalProps {
   isOpen: boolean;
@@ -11,7 +11,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   isOpen,
   isDeleting,
   onCancel,
-  onConfirm
+  onConfirm,
 }) => {
   if (!isOpen) return null;
 
@@ -22,7 +22,9 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
           Delete Chat
         </h3>
         <p className="text-muted mb-6">
-          Are you sure you want to delete this chat? All messages will be archived and removed from your active chats. This action cannot be undone.
+          Are you sure you want to delete this chat? All messages will be
+          archived and removed from your active chats. This action cannot be
+          undone.
         </p>
         <div className="flex justify-end space-x-3">
           <button
@@ -43,7 +45,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                 Deleting...
               </>
             ) : (
-              'Delete'
+              "Delete"
             )}
           </button>
         </div>
@@ -52,4 +54,4 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   );
 };
 
-export default DeleteConfirmationModal; 
+export default DeleteConfirmationModal;
