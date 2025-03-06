@@ -87,6 +87,14 @@ export function UserProvider({ children }: UserProviderProps) {
   const refreshSupabaseToken = useCallback(async () => {
     if (!user || refreshInProgress) return cachedClient;
 
+    // Add a time-based throttle to prevent excessive refreshes
+    // Only refresh if at least 30 seconds have passed since the last request
+    const now = Date.now();
+    if (now - lastTokenRequestTime < 30000) {
+      console.log("Token refresh throttled - too many requests");
+      return cachedClient;
+    }
+
     try {
       setRefreshInProgress(true);
       // Get a fresh JWT token from Clerk
@@ -116,7 +124,7 @@ export function UserProvider({ children }: UserProviderProps) {
     } finally {
       setRefreshInProgress(false);
     }
-  }, [user, getToken, refreshInProgress, cachedClient]);
+  }, [user, getToken, refreshInProgress, cachedClient, lastTokenRequestTime]);
 
   // Function to get a Supabase client with the user's token
   const getSupabaseClient = useCallback(async () => {
@@ -124,13 +132,18 @@ export function UserProvider({ children }: UserProviderProps) {
 
     const now = Date.now();
 
-    // More aggressive token refresh policy:
-    // 1. If token is expired or will expire in the next 2 minutes
-    // 2. Or if we don't have a cached client
-    // 3. Or if token hasn't been validated yet
-    const tokenExpiringSoon = now > tokenExpiresAt - 2 * 60 * 1000;
+    // More conservative token refresh policy:
+    // 1. If token is expired
+    // 2. Or if token will expire in the next 2 minutes AND we haven't refreshed in the last 30 seconds
+    // 3. Or if we don't have a cached client
     const tokenExpired = now > tokenExpiresAt;
-    const needsRefresh = !cachedClient || tokenExpired || tokenExpiringSoon || !tokenValidated;
+    const tokenExpiringSoon = now > tokenExpiresAt - 2 * 60 * 1000;
+    const recentlyRefreshed = now - lastTokenRequestTime < 30000;
+    
+    // Only consider validation status for the initial refresh
+    const needsInitialValidation = !tokenValidated && !cachedClient;
+    
+    const needsRefresh = !cachedClient || tokenExpired || (tokenExpiringSoon && !recentlyRefreshed) || needsInitialValidation;
 
     if (needsRefresh) {
       console.log("Token expired or expiring soon, refreshing...");
@@ -139,7 +152,7 @@ export function UserProvider({ children }: UserProviderProps) {
 
     // Use cached client if it's still valid
     return cachedClient;
-  }, [user, cachedClient, tokenExpiresAt, refreshSupabaseToken, tokenValidated]);
+  }, [user, cachedClient, tokenExpiresAt, refreshSupabaseToken, tokenValidated, lastTokenRequestTime]);
 
   // Add an error handler effect that will refresh the token on 401/403 errors
   useEffect(() => {

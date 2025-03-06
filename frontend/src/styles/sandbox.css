@@ -1,0 +1,27 @@
+.cm-gutter.cm-lineNumbers .cm-gutterElement {
+    font-size: 12px;
+}
+  
+.sp-c-euXojQ,
+.sp-editor,
+.sp-stack,
+.sp-c-dyHYiL,
+.sp-tabs,
+.sp-c-gGbYbQ,
+.sp-tabs-scrollable-container,
+.sp-c-gtcpyq,
+.sp-code-editor,
+.sp-pristine,
+.sp-python,
+.sp-c-jOWzsE,
+.sp-c-jkvvao,
+.sp-cm,
+.cm-editor,
+.cm-scroller,
+.cm-content {
+    background-color: var(--color-background) !important;
+}
+
+.ͼ1o.cm-editor.cm-focused .cm-activeLine {
+    background-color: var(--color-card) !important;
+}

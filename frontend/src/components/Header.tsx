@@ -1,9 +1,10 @@
 import { UserButton } from "@clerk/clerk-react";
 import { useTheme } from "../contexts/ThemeContext";
+import { useAuth } from "@clerk/clerk-react";
 
 export default function Header() {
   const { theme, toggleTheme } = useTheme();
-
+  const { isSignedIn } = useAuth();
   return (
     <div className="fixed top-4 right-4 z-50 flex items-center gap-4">
       <button
@@ -45,7 +46,7 @@ export default function Header() {
         )}
         <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-0 h-0.5 bg-[var(--color-primary)] group-hover:w-full transition-all duration-300"></span>
       </button>
-      <UserButton />
+      {isSignedIn && <UserButton />}
     </div>
   );
 }

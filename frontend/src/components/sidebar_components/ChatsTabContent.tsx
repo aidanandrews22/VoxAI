@@ -28,7 +28,7 @@ const ChatsTabContent: React.FC<ChatsTabContentProps> = ({
           onClick={handleCreateSession}
           className={`cursor-pointer flex items-center justify-center w-full ${
             isMobile ? "p-4" : "p-3"
-          } rounded-lg bg-hover dark:bg-gray-800/50 border border-none hover:bg-hover/50 transition-all duration-200 active:scale-[0.98]`}
+          } rounded-lg bg-background border border-none hover:bg-hover transition-all duration-200 active:scale-[0.98]`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

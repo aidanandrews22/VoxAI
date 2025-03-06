@@ -623,9 +623,6 @@
 }
 
 /* Import notes styling for BlockNote editor */
-@import "./components/note/notes.css";
-
-.ͼ22 .cm-lineNumbers .cm-gutterElement {
-  font-size: 12px;
-}
-
+@import "./styles/notes.css";
+@import "./styles/sandbox.css";
+@import "./styles/landing.css";

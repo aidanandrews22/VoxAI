@@ -198,7 +198,7 @@ export const executeCodeLocally = async (
     const mockResponses: Record<string, CodeExecutionResponse> = {
       python: {
         success: true,
-        stdout: "Hello, world!\nThe result is 30\n",
+      stdout: "Hello, world!\nThe result is 30\n",
         execution_time: 0.00212,
         result: { x: 10, y: 20, result: 30 },
         output: "Hello, world!\nThe result is 30\n",

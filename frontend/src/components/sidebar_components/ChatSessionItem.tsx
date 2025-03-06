@@ -12,7 +12,7 @@ const ChatSessionItem: React.FC<ChatSessionItemProps> = ({
   return (
     <li
       className={`${isMobile ? "p-3" : "p-2"} rounded ${
-        isActive ? "bg-hover" : "hover:bg-hover"
+        isActive ? "bg-background" : "hover:bg-hover"
       } transition-all duration-200`}
     >
       <div className="flex justify-between items-center">
@@ -30,7 +30,7 @@ const ChatSessionItem: React.FC<ChatSessionItemProps> = ({
         <div className="flex space-x-2">
           <button
             onClick={() => handleEditChatTitle?.(session)}
-            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-200 p-1"
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300 transition-colors duration-200 p-1 cursor-pointer"
             aria-label="Edit chat title"
           >
             <svg
@@ -50,7 +50,7 @@ const ChatSessionItem: React.FC<ChatSessionItemProps> = ({
           </button>
           <button
             onClick={() => confirmDeleteSession?.(session.id)}
-            className="text-red-500 hover:text-red-700 transition-colors duration-200 p-1"
+            className="text-red-500 hover:text-red-700 transition-colors duration-200 p-1 cursor-pointer"
             aria-label="Delete chat"
           >
             <svg

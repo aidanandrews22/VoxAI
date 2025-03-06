@@ -1,4 +1,8 @@
 // Export Sandbox components
 export { default as Sandbox } from './Sandbox';
-export { default as AdvancedSandbox } from './sandbox/AdvancedSandbox';
-export { default as CustomSandbox } from './sandbox/CustomSandbox'; 
+
+// Re-export components
+export { default as ChatInterface } from './ChatInterface';
+export { default as DeleteConfirmationModal } from './DeleteConfirmationModal';
+export { default as LoadingSpinner } from './LoadingSpinner';
+export { default as Sidebar } from './Sidebar'; 

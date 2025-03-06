@@ -376,3 +376,190 @@ export async function processFile(
     };
   }
 }
+
+/**
+ * Uploads and processes a file with retry logic and state management
+ * @param file The file to upload
+ * @param notebookId The ID of the notebook
+ * @param userId The ID of the user
+ * @param refreshTokenFn Function to refresh auth token
+ * @param getClientFn Function to get Supabase client
+ * @returns Result of the operation
+ */
+export async function uploadAndProcessFile(
+  file: File,
+  notebookId: string,
+  userId: string,
+  refreshTokenFn: () => Promise<void>,
+  getClientFn: () => Promise<any>,
+): Promise<{
+  success: boolean,
+  data?: NotebookFile,
+  error?: any,
+  tempId: string,
+  isProcessing?: boolean,
+  message?: string,
+}> {
+  // Create a temporary ID to track the uploading state
+  const tempId = `temp-${Date.now()}`;
+  
+  // Function to handle file upload with retry logic
+  const uploadWithRetry = async (retryCount = 0): Promise<any> => {
+    try {
+      // Get authenticated Supabase client - force refresh if retry
+      const authClient = await (retryCount > 0 
+        ? refreshTokenFn().then(() => getClientFn()) 
+        : getClientFn());
+
+      if (!authClient) {
+        console.error("Failed to get authenticated Supabase client");
+        throw new Error("Authentication error. Please try again or refresh the page.");
+      }
+
+      // Upload to Supabase
+      const result = await uploadFile(
+        file,
+        false,
+        notebookId,
+        userId,
+        authClient,
+        retryCount
+      );
+
+      // If token expired and we should retry with a new token
+      if (!result.success && result.shouldRetryWithNewToken && retryCount < 2) {
+        console.log(`Retrying upload with refreshed token, attempt ${retryCount + 1}/3`);
+        // Force refresh the token and retry
+        await refreshTokenFn();
+        return uploadWithRetry(retryCount + 1);
+      }
+
+      return result;
+    } catch (err) {
+      console.error(`Error uploading file (attempt ${retryCount + 1}/3):`, err);
+      
+      // If we haven't retried too many times and this looks like an auth error, retry
+      const errorMsg = String(err).toLowerCase();
+      if (retryCount < 2 && 
+          (errorMsg.includes('jwt') || 
+           errorMsg.includes('unauthorized') || 
+           errorMsg.includes('403') || 
+           errorMsg.includes('401'))) {
+        console.log("Auth error detected, refreshing token and retrying...");
+        await refreshTokenFn();
+        return uploadWithRetry(retryCount + 1);
+      }
+      
+      throw err;
+    }
+  };
+
+  try {
+    // Start upload with retry logic
+    const result = await uploadWithRetry();
+
+    if (!result.success) {
+      return {
+        success: false,
+        error: result.error || "Failed to upload file",
+        tempId,
+        message: result.fileType 
+          ? `Unsupported file type: ${result.fileType}. Please try a different file.`
+          : result.error || "Failed to upload file"
+      };
+    }
+
+    // Add the file to the files list with processing status
+    const newFile: NotebookFile & { isProcessing?: boolean } = {
+      ...result.data,
+      isProcessing: result.isProcessing || false,
+    };
+
+    // Return success
+    return {
+      success: true,
+      data: newFile,
+      tempId,
+      isProcessing: true,
+      message: result.message || "File uploaded, AI is now processing..."
+    };
+  } catch (err) {
+    console.error("Error uploading file:", err);
+    return {
+      success: false,
+      error: "An error occurred while uploading the file",
+      tempId,
+      message: "Error uploading file"
+    };
+  }
+}
+
+/**
+ * Deletes a file with retry logic for token refreshing
+ * @param fileId The ID of the file to delete
+ * @param refreshTokenFn Function to refresh auth token
+ * @param getClientFn Function to get Supabase client
+ * @returns Result of the delete operation
+ */
+export async function deleteFileWithRetry(
+  fileId: string,
+  refreshTokenFn: () => Promise<void>,
+  getClientFn: () => Promise<any>,
+): Promise<{ success: boolean, error?: any }> {
+  // Function to handle file deletion with retry logic
+  const deleteWithRetryInternal = async (retryCount = 0): Promise<any> => {
+    try {
+      // Get authenticated Supabase client - force refresh if retry
+      const authClient = await (retryCount > 0 
+        ? refreshTokenFn().then(() => getClientFn()) 
+        : getClientFn());
+
+      // If we couldn't get an authenticated client, show an error
+      if (!authClient) {
+        console.error("Authentication failed when trying to delete file");
+        throw new Error("Authentication error. Please try again or refresh the page.");
+      }
+
+      console.log("Calling deleteFile service function");
+      const result = await deleteFile(fileId, authClient, retryCount);
+      console.log("deleteFile result:", result);
+
+      // If token expired and we should retry with a new token
+      if (!result.success && result.shouldRetryWithNewToken && retryCount < 2) {
+        console.log(`Retrying deletion with refreshed token, attempt ${retryCount + 1}/3`);
+        // Force refresh the token and retry
+        await refreshTokenFn();
+        return deleteWithRetryInternal(retryCount + 1);
+      }
+
+      return result;
+    } catch (err) {
+      console.error(`Error deleting file (attempt ${retryCount + 1}/3):`, err);
+      
+      // If we haven't retried too many times and this looks like an auth error, retry
+      const errorMsg = String(err).toLowerCase();
+      if (retryCount < 2 && 
+          (errorMsg.includes('jwt') || 
+           errorMsg.includes('unauthorized') || 
+           errorMsg.includes('403') || 
+           errorMsg.includes('401'))) {
+        console.log("Auth error detected, refreshing token and retrying...");
+        await refreshTokenFn();
+        return deleteWithRetryInternal(retryCount + 1);
+      }
+      
+      throw err;
+    }
+  };
+
+  try {
+    // Start deletion with retry logic
+    return await deleteWithRetryInternal();
+  } catch (err) {
+    console.error("Error in deleteFileWithRetry:", err);
+    return { 
+      success: false, 
+      error: err instanceof Error ? err.message : "Unknown error deleting file" 
+    };
+  }
+}

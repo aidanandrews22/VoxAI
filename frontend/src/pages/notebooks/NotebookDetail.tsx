@@ -27,8 +27,7 @@ import { getCheckedFiles } from "../../components/Sidebar";
 import toast from "react-hot-toast";
 import ResizablePanel from "../../components/note/ResizablePanel";
 import NotesPanel from "../../components/note/NotesPanel";
-import "../../components/note/notes.css";
-import Sandbox, { SandboxState } from "../../components/Sandbox";
+import Sandbox from "../../components/Sandbox";
 
 // Extended NotebookFile type to include processing status
 interface ExtendedNotebookFile extends NotebookFile {
@@ -72,7 +71,6 @@ export default function NotebookDetailPage() {
   const [isNotesPanelExpanded, setIsNotesPanelExpanded] = useState(false);
   // Sandbox panel state
   const [isSandboxExpanded, setIsSandboxExpanded] = useState(false);
-  const [sandboxState, setSandboxState] = useState<SandboxState | null>(null);
 
   error;
   editedChatTitle;
@@ -631,26 +629,6 @@ export default function NotebookDetailPage() {
 
       console.log("Sending single user message:", messageText);
 
-      // If sandbox is expanded, include the code and console output in the query
-      let queryText = messageText;
-      if (isSandboxExpanded && sandboxState) {
-        // Format the sandbox information in a clear, structured way
-        queryText = `${messageText}\n\n--- SANDBOX INFORMATION ---\n`;
-        
-        // Add code with language
-        queryText += `Code (${sandboxState.language}):\n\`\`\`${sandboxState.language}\n${sandboxState.code}\n\`\`\`\n\n`;
-        
-        // Add console output if available
-        if (sandboxState.consoleOutput && sandboxState.consoleOutput.trim()) {
-          queryText += `Console Output:\n\`\`\`\n${sandboxState.consoleOutput}\n\`\`\`\n\n`;
-        }
-        
-        // Update the user message with the enhanced content
-        userOnlyMessage[0].content = queryText;
-        
-        console.log("Including sandbox code and output in query");
-      }
-
       // Stream the response
       try {
         let finalResponse = "";
@@ -937,7 +915,7 @@ export default function NotebookDetailPage() {
                   onToggleExpand={toggleNotesPanel}
                 />
               ) : isSandboxExpanded ? (
-                <Sandbox onSandboxStateChange={setSandboxState} />
+                <Sandbox />
               ) : null
             }
             isRightPanelExpanded={isNotesPanelExpanded || isSandboxExpanded}

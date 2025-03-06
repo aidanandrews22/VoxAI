@@ -1,0 +1,282 @@
+/* Landing.tsx and Components Color Palette */
+
+/* Base Colors - Adaptive for Light/Dark Mode */
+.color-primary {
+  @media (prefers-color-scheme: dark) {
+    color: #f8fafc; /* text-slate-50 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    color: #0f172a; /* text-slate-900 in light mode */
+  }
+  
+  html.force-light & {
+    color: #0f172a; /* text-slate-900 in forced light mode */
+  }
+  
+  html.force-dark & {
+    color: #f8fafc; /* text-slate-50 in forced dark mode */
+  }
+}
+
+.color-secondary {
+  @media (prefers-color-scheme: dark) {
+    color: #cbd5e1; /* text-slate-300 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    color: #334155; /* text-slate-700 in light mode */
+  }
+  
+  html.force-light & {
+    color: #334155; /* text-slate-700 in forced light mode */
+  }
+  
+  html.force-dark & {
+    color: #cbd5e1; /* text-slate-300 in forced dark mode */
+  }
+}
+
+.color-muted {
+  @media (prefers-color-scheme: dark) {
+    color: #64748b; /* text-slate-500 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    color: #64748b; /* text-slate-500 in light mode */
+  }
+  
+  html.force-light & {
+    color: #64748b; /* text-slate-500 in forced light mode */
+  }
+  
+  html.force-dark & {
+    color: #64748b; /* text-slate-500 in forced dark mode */
+  }
+}
+
+/* Accent Colors - Consistent across themes */
+.color-sky-400 {
+  color: #38bdf8; /* text-sky-400, from-sky-400, hover:text-sky-400 */
+}
+
+.color-indigo-400 {
+  color: #818cf8; /* to-indigo-400 */
+}
+
+.color-purple-400 {
+  color: #c084fc; /* text-purple-400, to-purple-400, from-purple-400 */
+}
+
+.color-red-500 {
+  color: #ef4444; /* bg-red-500 */
+}
+
+.color-amber-500 {
+  color: #f59e0b; /* bg-amber-500 */
+}
+
+.color-emerald-500 {
+  color: #10b981; /* bg-emerald-500 */
+}
+
+.color-transparent {
+  color: transparent; /* text-transparent */
+}
+
+/* Background Colors - Adaptive for Light/Dark Mode */
+.bg-primary {
+  @media (prefers-color-scheme: dark) {
+    background-color: rgba(15, 23, 42, 0.9); /* bg-slate-900/90 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    background-color: rgba(248, 250, 252, 0.9); /* bg-slate-50/90 in light mode */
+  }
+  
+  html.force-light & {
+    background-color: rgba(248, 250, 252, 0.9); /* bg-slate-50/90 in forced light mode */
+  }
+  
+  html.force-dark & {
+    background-color: rgba(15, 23, 42, 0.9); /* bg-slate-900/90 in forced dark mode */
+  }
+}
+
+.bg-secondary {
+  @media (prefers-color-scheme: dark) {
+    background-color: rgba(30, 41, 59, 0.7); /* bg-slate-800/70 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    background-color: rgba(241, 245, 249, 0.7); /* bg-slate-100/70 in light mode */
+  }
+  
+  html.force-light & {
+    background-color: rgba(241, 245, 249, 0.7); /* bg-slate-100/70 in forced light mode */
+  }
+  
+  html.force-dark & {
+    background-color: rgba(30, 41, 59, 0.7); /* bg-slate-800/70 in forced dark mode */
+  }
+}
+
+.bg-transparent {
+  background-color: transparent; /* bg-transparent */
+}
+
+/* Border Colors - Adaptive for Light/Dark Mode */
+.border-adaptive {
+  @media (prefers-color-scheme: dark) {
+    border-color: rgba(203, 213, 225, 0.1); /* border-slate-300/10 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    border-color: rgba(51, 65, 85, 0.1); /* border-slate-700/10 in light mode */
+  }
+  
+  html.force-light & {
+    border-color: rgba(51, 65, 85, 0.1); /* border-slate-700/10 in forced light mode */
+  }
+  
+  html.force-dark & {
+    border-color: rgba(203, 213, 225, 0.1); /* border-slate-300/10 in forced dark mode */
+  }
+}
+
+/* Accent Background Colors - Consistent across themes */
+.bg-sky-400 {
+  background-color: #38bdf8; /* from-sky-400, after:bg-sky-400 */
+}
+
+.bg-indigo-400 {
+  background-color: #818cf8; /* to-indigo-400 */
+}
+
+.bg-purple-400 {
+  background-color: #c084fc; /* from-purple-400, to-purple-400 */
+}
+
+.bg-red-500 {
+  background-color: #ef4444; /* bg-red-500 */
+}
+
+.bg-amber-500 {
+  background-color: #f59e0b; /* bg-amber-500 */
+}
+
+.bg-emerald-500 {
+  background-color: #10b981; /* bg-emerald-500 */
+}
+
+/* Gradient Colors - Consistent across themes */
+.gradient-sky-to-indigo {
+  background-image: linear-gradient(to bottom right, #38bdf8, #818cf8); /* bg-gradient-to-br from-sky-400 to-indigo-400 */
+}
+
+.gradient-indigo-to-purple {
+  background-image: linear-gradient(to bottom right, #818cf8, #c084fc); /* bg-gradient-to-br from-indigo-400 to-purple-400 */
+}
+
+.gradient-purple-to-sky {
+  background-image: linear-gradient(to bottom right, #c084fc, #38bdf8); /* bg-gradient-to-br from-purple-400 to-sky-400 */
+}
+
+/* Adaptive Gradients for Light/Dark Mode */
+.gradient-primary-to-sky {
+  @media (prefers-color-scheme: dark) {
+    background-image: linear-gradient(to right, #f8fafc, #38bdf8); /* bg-gradient-to-r from-slate-50 to-sky-400 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    background-image: linear-gradient(to right, #0f172a, #38bdf8); /* bg-gradient-to-r from-slate-900 to-sky-400 in light mode */
+  }
+  
+  html.force-light & {
+    background-image: linear-gradient(to right, #0f172a, #38bdf8); /* bg-gradient-to-r from-slate-900 to-sky-400 in forced light mode */
+  }
+  
+  html.force-dark & {
+    background-image: linear-gradient(to right, #f8fafc, #38bdf8); /* bg-gradient-to-r from-slate-50 to-sky-400 in forced dark mode */
+  }
+}
+
+.gradient-primary-to-indigo {
+  @media (prefers-color-scheme: dark) {
+    background-image: linear-gradient(to right, #f8fafc, #818cf8); /* bg-gradient-to-r from-slate-50 to-indigo-400 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    background-image: linear-gradient(to right, #0f172a, #818cf8); /* bg-gradient-to-r from-slate-900 to-indigo-400 in light mode */
+  }
+  
+  html.force-light & {
+    background-image: linear-gradient(to right, #0f172a, #818cf8); /* bg-gradient-to-r from-slate-900 to-indigo-400 in forced light mode */
+  }
+  
+  html.force-dark & {
+    background-image: linear-gradient(to right, #f8fafc, #818cf8); /* bg-gradient-to-r from-slate-50 to-indigo-400 in forced dark mode */
+  }
+}
+
+/* Shadow Colors - Adaptive for Light/Dark Mode */
+.shadow-adaptive {
+  @media (prefers-color-scheme: dark) {
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3); /* shadow-black/30 in dark mode */
+  }
+  @media (prefers-color-scheme: light) {
+    box-shadow: 0 0 15px rgba(100, 116, 139, 0.2); /* shadow-slate-500/20 in light mode */
+  }
+  
+  html.force-light & {
+    box-shadow: 0 0 15px rgba(100, 116, 139, 0.2); /* shadow-slate-500/20 in forced light mode */
+  }
+  
+  html.force-dark & {
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.3); /* shadow-black/30 in forced dark mode */
+  }
+}
+
+.shadow-sky-400-20 {
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.2); /* hover:shadow-sky-400/20 */
+}
+
+.shadow-sky-400-30 {
+  box-shadow: 0 0 15px rgba(56, 189, 248, 0.3); /* hover:shadow-sky-400/30 */
+}
+
+/* Hover Effects - Adaptive for Light/Dark Mode */
+.hover-bg-adaptive {
+  @media (prefers-color-scheme: dark) {
+    &:hover {
+      background-color: rgba(30, 41, 59, 0.9); /* hover:bg-slate-800/90 in dark mode */
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    &:hover {
+      background-color: rgba(241, 245, 249, 0.9); /* hover:bg-slate-100/90 in light mode */
+    }
+  }
+  
+  html.force-light &:hover {
+    background-color: rgba(241, 245, 249, 0.9); /* hover:bg-slate-100/90 in forced light mode */
+  }
+  
+  html.force-dark &:hover {
+    background-color: rgba(30, 41, 59, 0.9); /* hover:bg-slate-800/90 in forced dark mode */
+  }
+}
+
+/* Text Hover Effects - Adaptive for Light/Dark Mode */
+.hover-text-adaptive {
+  @media (prefers-color-scheme: dark) {
+    &:hover {
+      color: #f8fafc; /* hover:text-slate-50 in dark mode */
+    }
+  }
+  @media (prefers-color-scheme: light) {
+    &:hover {
+      color: #0f172a; /* hover:text-slate-900 in light mode */
+    }
+  }
+  
+  html.force-light &:hover {
+    color: #0f172a; /* hover:text-slate-900 in forced light mode */
+  }
+  
+  html.force-dark &:hover {
+    color: #f8fafc; /* hover:text-slate-50 in forced dark mode */
+  }
+}

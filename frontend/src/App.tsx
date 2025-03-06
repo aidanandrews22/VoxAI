@@ -1,24 +1,32 @@
+import { lazy, Suspense } from 'react';
 import {
   SignedIn,
   SignedOut,
-  SignInButton,
-  SignUpButton,
 } from "@clerk/clerk-react";
 import {
   BrowserRouter as Router,
   Routes,
   Route,
-  Navigate,
 } from "react-router-dom";
-import SignInPage from "./pages/auth/SignIn";
-import SignUpPage from "./pages/auth/SignUp";
-import NotebooksPage from "./pages/notebooks/Notebooks";
-import NotebookDetailPage from "./pages/notebooks/NotebookDetail";
-import { UserProvider } from "./contexts/UserContext";
+import { Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
-import Sandbox from "./components/Sandbox";
+
+// Marketing Pages
+import HomePage from "./pages/Home";
+import SignInUp from "./pages/auth/SignIn-Up";
+import Header from "./components/Header";
+
+// Contexts / Light Weight Files
+import { UserProvider } from "./contexts/UserContext";
 import { useTheme } from "./contexts/ThemeContext";
 import TokenRefresher from "./components/TokenRefresher";
+import LoadingSpinner from "./components/LoadingSpinner";
+
+// Web App
+const NotebooksPage = lazy(() => import("./pages/notebooks/Notebooks"));
+const NotebookDetailPage = lazy(() => import("./pages/notebooks/NotebookDetail"));
+const Sandbox = lazy(() => import("./components/Sandbox"));
+
 
 export default function App() {
   // Get current theme from our context
@@ -65,86 +73,84 @@ export default function App() {
           }}
         />
         <Routes>
+          {/* Catch all routes */}
           <Route
-            path="/sign-in"
+            path="*"
             element={
-              <SignedOut>
-                <SignInPage />
-              </SignedOut>
+              <Navigate to="/" />
             }
           />
-          <Route
-            path="/sign-up"
-            element={
-              <SignedOut>
-                <SignUpPage />
-              </SignedOut>
-            }
-          />
-          <Route
-            path="/sandbox"
-            element={
-              <SignedIn>
-                <Sandbox />
-              </SignedIn>
-            }
-          />
-          <Route
-            path="/notebooks"
-            element={
-              <SignedIn>
-                <NotebooksPage />
-              </SignedIn>
-            }
-          />
-          <Route
-            path="/notebooks/:notebookId"
-            element={
-              <SignedIn>
-                <NotebookDetailPage />
-              </SignedIn>
-            }
-          />
+
+          {/* Marketing Pages */}
           <Route
             path="/"
             element={
               <>
                 <SignedIn>
-                  <Navigate to="/notebooks" replace />
+                  <Header />
+                  <HomePage />
                 </SignedIn>
                 <SignedOut>
-                  <div className="min-h-screen bg-white dark:bg-black flex flex-col items-center justify-center">
-                    <div className="text-center space-y-8">
-                      <div>
-                        <h1 className="text-6xl font-bold text-black dark:text-white mb-4">
-                          Vox
-                          <span className="font-black text-gray-400 dark:text-gray-500">
-                            AI
-                          </span>
-                        </h1>
-                        <p className="text-xl text-gray-800 dark:text-gray-200 max-w-md mx-auto">
-                          Experience the future of voice interaction
-                        </p>
-                      </div>
-
-                      <div className="flex gap-4 justify-center">
-                        <SignInButton mode="modal">
-                          <button className="px-6 py-2 rounded-full bg-black text-white dark:bg-white dark:text-black font-medium transition-all duration-300 hover:bg-gray-900 dark:hover:bg-gray-100 cursor-pointer">
-                            Sign In
-                          </button>
-                        </SignInButton>
-                        <SignUpButton mode="modal">
-                          <button className="px-6 py-2 rounded-full border-2 border-black text-black dark:border-white dark:text-white font-medium transition-all duration-300 hover:bg-black hover:text-white dark:hover:bg-white dark:hover:text-black cursor-pointer">
-                            Sign Up
-                          </button>
-                        </SignUpButton>
-                      </div>
-                    </div>
-                  </div>
+                  <Header />
+                  <HomePage />
                 </SignedOut>
               </>
             }
           />
+
+          <Route
+            path="/sign-in"
+            element={
+              <>
+                <SignedOut>
+                  <SignInUp />
+                </SignedOut>
+                <SignedIn>
+                  <Navigate to="/notebooks" />
+                </SignedIn>
+              </>
+            }
+          />
+
+          <Route
+            path="/sign-up"
+            element={
+              <>
+                <SignedOut>
+                  <SignInUp />
+                </SignedOut>
+                <SignedIn>
+                  <Navigate to="/notebooks" />
+                </SignedIn>
+              </>
+            }
+          />
+          {/* End Marketing Pages */}
+
+          {/* Web App - Wrap lazy-loaded components with Suspense */}
+          <Route path="/notebooks" element={
+            <SignedIn>
+              <Suspense fallback={<LoadingSpinner size="large" />}>
+                <NotebooksPage />
+              </Suspense>
+            </SignedIn>
+          } />
+          <Route path="/notebooks/:id" element={
+            <SignedIn>
+              <Suspense fallback={<LoadingSpinner size="large" />}>
+                <NotebookDetailPage />
+              </Suspense>
+            </SignedIn>
+          } />
+          <Route path="/sandbox" element={
+            <SignedIn>
+              <Suspense fallback={<LoadingSpinner size="large" />}>
+                <Sandbox />
+              </Suspense>
+            </SignedIn>
+          } />
+          {/* End Web App */}
+          
         </Routes>
       </Router>
     </UserProvider>

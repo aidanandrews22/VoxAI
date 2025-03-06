@@ -89,7 +89,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({
           <div className="flex-1 overflow-y-auto">
             <div className="max-w-3xl mx-auto px-4 pt-4">
               <div className="flex flex-col items-center justify-center h-full min-h-[50vh]">
-                <div className="p-6 bg-hover rounded-2xl shadow-sm max-w-md w-full text-center">
+                <div className="p-6 bg-card rounded-2xl shadow-sm max-w-md w-full text-center">
                   <h3 className="text-xl font-semibold text-adaptive mb-2">
                     Welcome to VoxAI Chat
                   </h3>
