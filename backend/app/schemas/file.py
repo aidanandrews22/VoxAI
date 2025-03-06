@@ -86,6 +86,7 @@ class QueryRequest(BaseModel):
     namespace: Optional[str] = Field(None, description="Namespace to query in Pinecone")
     filter: Optional[Dict[str, Any]] = Field(None, description="Filter to apply to the query")
     user_id: Optional[str] = Field(None, description="User ID to fetch toggled files for RAG")
+    is_coding_question: bool = Field(False, description="Whether the question is about coding")
 
 
 class QueryResponse(BaseModel):

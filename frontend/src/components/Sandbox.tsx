@@ -13,6 +13,13 @@ import { executeCode, executeCodeLocally, CodeExecutionResponse } from "../servi
 type SandpackLayoutMode = "preview" | "tests" | "console";
 type ConsoleLayoutMode = "side-by-side" | "below" | "collapsed";
 
+// Define a type for the sandbox state that will be exposed to parent components
+export interface SandboxState {
+  code: string;
+  language: string;
+  consoleOutput: string;
+}
+
 // Custom console output component
 const CustomConsoleOutput = ({ result, setCodeExecutionResult, setLayoutMode, isRunning, setIsRunning }: { result: CodeExecutionResponse | null, setCodeExecutionResult: React.Dispatch<React.SetStateAction<CodeExecutionResponse | null>>, setLayoutMode: React.Dispatch<React.SetStateAction<SandpackLayoutMode>>, isRunning: boolean, setIsRunning: React.Dispatch<React.SetStateAction<boolean>> }) => {
   const { theme } = useTheme();
@@ -130,13 +137,18 @@ const CustomConsoleOutput = ({ result, setCodeExecutionResult, setLayoutMode, is
   );
 };
 
-export default function Sandbox() {
+export default function Sandbox({ 
+  onSandboxStateChange 
+}: { 
+  onSandboxStateChange?: (state: SandboxState) => void 
+}) {
   const { theme } = useTheme();
   const [selectedLanguage, setSelectedLanguage] = useState("python");
   const [layoutMode, setLayoutMode] = useState<SandpackLayoutMode>("preview");
   const [codeExecutionResult, setCodeExecutionResult] = useState<CodeExecutionResponse | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [consoleLayout, setConsoleLayout] = useState<ConsoleLayoutMode>("side-by-side");
+  const [currentCode, setCurrentCode] = useState<string>("");
 
   const languages = [
     {
@@ -154,7 +166,27 @@ export default function Sandbox() {
     if (selectedLanguage === "python") {
       setLayoutMode("console");
     }
-  }, [selectedLanguage]);
+    
+    // Update current code when language changes
+    const firstFileName = Object.keys(files)[0];
+    setCurrentCode(files[firstFileName]?.code || '');
+  }, [selectedLanguage, files]);
+
+  // Update parent component when sandbox state changes
+  useEffect(() => {
+    if (onSandboxStateChange) {
+      // Get console output from the execution result
+      const consoleOutput = codeExecutionResult 
+        ? (codeExecutionResult.output || '') + (codeExecutionResult.error ? '\n' + codeExecutionResult.error : '')
+        : '';
+      
+      onSandboxStateChange({
+        code: currentCode,
+        language: selectedLanguage,
+        consoleOutput
+      });
+    }
+  }, [currentCode, selectedLanguage, codeExecutionResult, onSandboxStateChange]);
 
   // Console layout toggle handler
   const toggleConsoleLayout = () => {
@@ -276,81 +308,88 @@ export default function Sandbox() {
             "sp-tab-button": "text-adaptive hover:bg-hover",
           },
           initMode: "lazy",
+          visibleFiles: Object.keys(files),
+          activeFile: Object.keys(files)[0],
         }}
       >
-        {/* Run Button and Console Layout Toggle */}
-        <div className="flex justify-between items-center mb-2">
-          <div>
-            {(selectedLanguage === "python" || layoutMode === "console") && (
-              <button
-                type="button"
-                onClick={toggleConsoleLayout}
-                className="inline-flex items-center text-xs justify-center px-2 py-1 rounded-md text-adaptive bg-background hover:bg-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/50 transition-all cursor-pointer"
-                title={getConsoleLayoutTooltip()}
-              >
-                {getConsoleLayoutIcon()}
-                <span>Console: {getConsoleLayoutLabel()}</span>
-              </button>
-            )}
+        <div className="flex flex-col h-full">
+          {/* Run Button and Console Layout Toggle */}
+          <div className="flex justify-between items-center mb-2">
+            <div>
+              {(selectedLanguage === "python" || layoutMode === "console") && (
+                <button
+                  type="button"
+                  onClick={toggleConsoleLayout}
+                  className="inline-flex items-center text-xs justify-center px-2 py-1 rounded-md text-adaptive bg-background hover:bg-hover focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/50 transition-all cursor-pointer"
+                  title={getConsoleLayoutTooltip()}
+                >
+                  {getConsoleLayoutIcon()}
+                  <span>Console: {getConsoleLayoutLabel()}</span>
+                </button>
+              )}
+            </div>
+            <RunButton 
+              setCodeExecutionResult={setCodeExecutionResult} 
+              setLayoutMode={setLayoutMode}
+              isRunning={isRunning}
+              setIsRunning={setIsRunning}
+            />
           </div>
-          <RunButton 
-            setCodeExecutionResult={setCodeExecutionResult} 
-            setLayoutMode={setLayoutMode}
-            isRunning={isRunning}
-            setIsRunning={setIsRunning}
-          />
-        </div>
-        
-        <SandpackLayout className={`transition-all duration-300 ease-in-out ${consoleLayout === "below" ? "flex-col" : ""}`}>
-          <SandpackCodeEditor
-            showTabs={true}
-            showLineNumbers={true}
-            showInlineErrors={true}
-            wrapContent={true}
-            extensions={[autocompletion()]}
-            showRunButton={false} /* Disable the default run button as we're using our custom one */
-            extensionsKeymap={[...completionKeymap]}
-            style={{ 
-              height: consoleLayout === "below" ? 400 : 800,
-              flex: consoleLayout === "side-by-side" ? "1 1 49%" : "1 1 auto",
-              transition: "height 0.3s ease-in-out, flex 0.3s ease-in-out",
-            }}
-            additionalLanguages={languages}
-          />
-          {(selectedLanguage === "python") && consoleLayout !== "collapsed" && (
-            <div 
-              className={`overflow-auto bg-background ${consoleLayout === "below" ? "border-t" : "border-l"} border-adaptive transition-all duration-300 ease-in-out`} 
+          
+          <SandpackLayout className={`transition-all duration-300 ease-in-out ${consoleLayout === "below" ? "flex-col" : ""}`}>
+            <SandpackCodeEditor 
+              showTabs={true}
+              showLineNumbers={true}
+              showInlineErrors={true}
+              wrapContent={true}
+              extensions={[autocompletion()]}
+              showRunButton={false} /* Disable the default run button as we're using our custom one */
+              extensionsKeymap={[...completionKeymap]}
               style={{ 
                 height: consoleLayout === "below" ? 400 : 800,
                 flex: consoleLayout === "side-by-side" ? "1 1 49%" : "1 1 auto",
-                transition: "height 0.3s ease-in-out, flex 0.3s ease-in-out"
+                transition: "height 0.3s ease-in-out, flex 0.3s ease-in-out",
               }}
-            >
-              <CustomConsoleOutput result={codeExecutionResult} setCodeExecutionResult={setCodeExecutionResult} setLayoutMode={setLayoutMode} isRunning={isRunning} setIsRunning={setIsRunning} />
-            </div>
-          )}
-          {(selectedLanguage === "javascript") && consoleLayout !== "collapsed" && (
-            <div className="flex-1 overflow-auto bg-background border-l border-adaptive">
-              <SandpackConsole
-                showSyntaxError={true}
-                showResetConsoleButton={true}
-                showRestartButton={true}
-                resetOnPreviewRestart={true}
-                showHeader={true}
-              />
-            </div>
-          )}
-          {selectedLanguage !== "python" && layoutMode !== "console" && (
-            <>
-              {layoutMode === "preview" && <SandpackPreview showNavigator={true} />}
-              {layoutMode === "tests" && <SandpackPreview showNavigator={false} />}
-            </>
-          )}
-        </SandpackLayout>
-        <div className="flex justify-between items-center p-2">
-          <UnstyledOpenInCodeSandboxButton className="text-primary underline px-4 py-2">
-              Open in CodeSandbox
-          </UnstyledOpenInCodeSandboxButton>
+              additionalLanguages={languages}
+              onValueChange={(code) => {
+                setCurrentCode(code);
+              }}
+            />
+            {(selectedLanguage === "python") && consoleLayout !== "collapsed" && (
+              <div 
+                className={`overflow-auto bg-background ${consoleLayout === "below" ? "border-t" : "border-l"} border-adaptive transition-all duration-300 ease-in-out`} 
+                style={{ 
+                  height: consoleLayout === "below" ? 400 : 800,
+                  flex: consoleLayout === "side-by-side" ? "1 1 49%" : "1 1 auto",
+                  transition: "height 0.3s ease-in-out, flex 0.3s ease-in-out"
+                }}
+              >
+                <CustomConsoleOutput result={codeExecutionResult} setCodeExecutionResult={setCodeExecutionResult} setLayoutMode={setLayoutMode} isRunning={isRunning} setIsRunning={setIsRunning} />
+              </div>
+            )}
+            {(selectedLanguage === "javascript") && consoleLayout !== "collapsed" && (
+              <div className="flex-1 overflow-auto bg-background border-l border-adaptive">
+                <SandpackConsole
+                  showSyntaxError={true}
+                  showResetConsoleButton={true}
+                  showRestartButton={true}
+                  resetOnPreviewRestart={true}
+                  showHeader={true}
+                />
+              </div>
+            )}
+            {selectedLanguage !== "python" && layoutMode !== "console" && (
+              <>
+                {layoutMode === "preview" && <SandpackPreview showNavigator={true} />}
+                {layoutMode === "tests" && <SandpackPreview showNavigator={false} />}
+              </>
+            )}
+          </SandpackLayout>
+          <div className="flex justify-between items-center p-2">
+            <UnstyledOpenInCodeSandboxButton className="text-primary underline px-4 py-2">
+                Open in CodeSandbox
+            </UnstyledOpenInCodeSandboxButton>
+          </div>
         </div>
       </SandpackProvider>
     </div>

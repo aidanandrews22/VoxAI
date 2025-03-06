@@ -6,6 +6,9 @@
   --color-primary: oklch(
     0.55 0.18 250
   ); /* A balanced blue that works well in both light/dark modes */
+  --color-primary-hover: oklch(
+    0.809 0.105 251.813
+  ); /* Primary color for light mode */
   --color-secondary: oklch(
     0.45 0.15 250
   ); /* Slightly darker variant for hover states */
@@ -288,6 +291,23 @@
 
     html.force-dark & {
       background-color: var(--color-hover-dark);
+    }
+  }
+
+  .hover\:bg-primary:hover {
+    @media (prefers-color-scheme: dark) {
+      background-color: var(--color-primary-hover);
+    }
+    @media (prefers-color-scheme: light) {
+      background-color: var(--color-primary-hover);
+    }
+
+    html.force-light & {
+      background-color: var(--color-primary-hover);
+    }
+
+    html.force-dark & {
+      background-color: var(--color-primary-hover);
     }
   }
 

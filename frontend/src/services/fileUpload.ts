@@ -1,4 +1,4 @@
-import { supabase, withAuthentication } from "./supabase";
+import { supabase } from "./supabase";
 import type { NotebookFile } from "../types/notebook";
 
 /**
@@ -7,16 +7,16 @@ import type { NotebookFile } from "../types/notebook";
  * @param file The file to upload
  * @param notebookId The ID of the notebook to associate the file with
  * @param userId The ID of the user uploading the file
- * @param getSupabaseClient Function to get an authenticated Supabase client
- * @param refreshToken Function to refresh the authentication token
+ * @param supabaseClient Optional authenticated Supabase client
+ * @param retryCount Number of times to retry on auth errors
  */
 export async function uploadFile(
   file: File,
   isNote: boolean = false,
   notebookId: string,
   userId: string,
-  getSupabaseClient?: () => Promise<any>,
-  refreshToken?: () => Promise<any>
+  supabaseClient = supabase,
+  retryCount: number = 0,
 ): Promise<{
   success: boolean;
   data?: NotebookFile;
@@ -24,40 +24,7 @@ export async function uploadFile(
   isProcessing?: boolean;
   message?: string;
   fileType?: string;
-}> {
-  // If we have getSupabaseClient and refreshToken functions, use withAuthentication
-  // Otherwise fall back to default supabase client
-  if (getSupabaseClient && refreshToken) {
-    return withAuthentication(
-      async (client) => {
-        return uploadFileInternal(file, isNote, notebookId, userId, client);
-      },
-      getSupabaseClient,
-      refreshToken,
-      3 // Allow up to 3 retries for file uploads
-    );
-  } else {
-    // Legacy fallback path
-    return uploadFileInternal(file, isNote, notebookId, userId, supabase);
-  }
-}
-
-/**
- * Internal implementation of file upload
- */
-async function uploadFileInternal(
-  file: File,
-  isNote: boolean,
-  notebookId: string,
-  userId: string,
-  supabaseClient: any
-): Promise<{
-  success: boolean;
-  data?: NotebookFile;
-  error?: any;
-  isProcessing?: boolean;
-  message?: string;
-  fileType?: string;
+  shouldRetryWithNewToken?: boolean;
 }> {
   try {
     console.log("Starting file upload with user ID:", userId);
@@ -77,6 +44,20 @@ async function uploadFileInternal(
 
     if (uploadError) {
       console.error("Storage upload error:", uploadError);
+      
+      // Handle JWT expired errors specifically
+      if (
+        (uploadError as any).statusCode === '403' && 
+        uploadError.message === 'jwt expired' && 
+        retryCount < 2
+      ) {
+        console.log(`JWT expired during upload, attempt ${retryCount + 1}/3`);
+        return {
+          success: false,
+          error: "Authentication token expired. Will retry with new token.",
+          shouldRetryWithNewToken: true
+        };
+      }
       
       // Return specific error for unsupported file type
       if (uploadError.message && uploadError.message.includes("content type")) {
@@ -103,7 +84,7 @@ async function uploadFileInternal(
     // Create a record in the notebook_files table
     const fileData: Omit<NotebookFile, "id" | "created_at"> = {
       notebook_id: notebookId,
-      user_id: userId, 
+      user_id: userId, // Keep the original userId for database records
       file_name: file.name,
       file_path: filePath,
       file_type: file.type,
@@ -119,12 +100,24 @@ async function uploadFileInternal(
 
     if (dbError) {
       console.error("Database insert error:", dbError);
+      
+      // Handle JWT expired errors for database operations
+      if (dbError.code === 'PGRST301' && retryCount < 2) {
+        console.log(`JWT expired during database insert, attempt ${retryCount + 1}/3`);
+        return {
+          success: false,
+          error: "Authentication token expired. Will retry with new token.",
+          shouldRetryWithNewToken: true
+        };
+      }
+      
       throw dbError;
     }
 
     console.log("Database record created, sending to ingest API");
 
     // Return success immediately after database record is created
+    // The isProcessing flag is set to true to indicate that processing is ongoing
     return {
       success: true,
       data: fileRecord,
@@ -133,6 +126,19 @@ async function uploadFileInternal(
     };
   } catch (error) {
     console.error("Error uploading file:", error);
+    
+    // Check for authentication-related errors
+    const errorStr = String(error);
+    if ((errorStr.includes('401') || errorStr.includes('403') || 
+         errorStr.includes('jwt') || errorStr.includes('unauthorized')) && 
+        retryCount < 2) {
+      return {
+        success: false,
+        error: "Authentication error. Will retry with new token.",
+        shouldRetryWithNewToken: true
+      };
+    }
+    
     return { success: false, error };
   }
 }
@@ -140,144 +146,137 @@ async function uploadFileInternal(
 /**
  * Fetches all files for a notebook
  * @param notebookId The ID of the notebook to fetch files for
- * @param getSupabaseClient Function to get an authenticated Supabase client
- * @param refreshToken Function to refresh the authentication token
+ * @param supabaseClient Optional authenticated Supabase client
  */
 export async function getNotebookFiles(
   notebookId: string,
-  getSupabaseClient?: () => Promise<any>,
-  refreshToken?: () => Promise<any>
+  supabaseClient = supabase,
 ): Promise<{ success: boolean; data?: NotebookFile[]; error?: any }> {
-  // If we have getSupabaseClient and refreshToken functions, use withAuthentication
-  if (getSupabaseClient && refreshToken) {
-    try {
-      const data = await withAuthentication(
-        async (client) => {
-          const { data, error } = await client
-            .from("notebook_files")
-            .select("*")
-            .eq("notebook_id", notebookId)
-            .order("created_at", { ascending: false });
-  
-          if (error) throw error;
-          return data;
-        },
-        getSupabaseClient,
-        refreshToken,
-        2
-      );
-      
-      return { success: true, data };
-    } catch (error) {
-      console.error("Error fetching notebook files:", error);
-      return { success: false, error };
+  try {
+    const { data, error } = await supabaseClient
+      .from("notebook_files")
+      .select("*")
+      .eq("notebook_id", notebookId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw error;
     }
-  } else {
-    // Legacy fallback path
-    try {
-      const { data, error } = await supabase
-        .from("notebook_files")
-        .select("*")
-        .eq("notebook_id", notebookId)
-        .order("created_at", { ascending: false });
-  
-      if (error) {
-        throw error;
-      }
-  
-      return { success: true, data };
-    } catch (error) {
-      console.error("Error fetching notebook files:", error);
-      return { success: false, error };
-    }
+
+    return { success: true, data };
+  } catch (error) {
+    console.error("Error fetching notebook files:", error);
+    return { success: false, error };
   }
 }
 
 /**
  * Deletes a file from Supabase storage and the notebook_files table
  * @param fileId The ID of the file to delete
- * @param getSupabaseClient Function to get an authenticated Supabase client
- * @param refreshToken Function to refresh the authentication token
+ * @param supabaseClient Optional authenticated Supabase client
+ * @param retryCount Number of times to retry on auth errors
  */
 export async function deleteFile(
   fileId: string,
-  getSupabaseClient?: () => Promise<any>,
-  refreshToken?: () => Promise<any>
-): Promise<{ success: boolean; error?: any }> {
-  // If we have getSupabaseClient and refreshToken functions, use withAuthentication
-  if (getSupabaseClient && refreshToken) {
-    try {
-      await withAuthentication(
-        async (client) => {
-          return deleteFileInternal(fileId, client);
-        },
-        getSupabaseClient,
-        refreshToken,
-        2
-      );
+  supabaseClient = supabase,
+  retryCount: number = 0,
+): Promise<{ success: boolean; error?: any; shouldRetryWithNewToken?: boolean }> {
+  try {
+    // First get the file details to know what to delete from storage
+    const { data: fileData, error: fetchError } = await supabaseClient
+      .from("notebook_files")
+      .select("*")
+      .eq("id", fileId)
+      .single();
+
+    if (fetchError) {
+      console.error("Error fetching file data:", fetchError);
       
-      return { success: true };
-    } catch (error) {
-      console.error("Error deleting file with authentication:", error);
-      return { success: false, error };
+      // Handle JWT expired errors for database operations
+      if ((fetchError.code === 'PGRST301' || fetchError.message?.includes('JWT')) && retryCount < 2) {
+        console.log(`JWT expired during file fetch for deletion, attempt ${retryCount + 1}/3`);
+        return {
+          success: false,
+          error: "Authentication token expired. Will retry with new token.",
+          shouldRetryWithNewToken: true
+        };
+      }
+      
+      return { success: false, error: fetchError };
     }
-  } else {
-    // Legacy fallback path
-    try {
-      await deleteFileInternal(fileId, supabase);
-      return { success: true };
-    } catch (error) {
-      console.error("Error deleting file:", error);
-      return { success: false, error };
+
+    if (!fileData) {
+      console.error("No file data found");
+      return { success: false, error: "File not found" };
     }
-  }
-}
 
-/**
- * Internal implementation of file deletion
- */
-async function deleteFileInternal(
-  fileId: string,
-  supabaseClient: any
-): Promise<void> {
-  // First get the file details to know what to delete from storage
-  const { data: fileData, error: fetchError } = await supabaseClient
-    .from("notebook_files")
-    .select("*")
-    .eq("id", fileId)
-    .single();
+    console.log("Retrieved file data for deletion:", fileData);
 
-  if (fetchError) {
-    console.error("Error fetching file data:", fetchError);
-    throw fetchError;
-  }
+    // Delete from storage first
+    const { error: storageError } = await supabaseClient.storage
+      .from("Vox")
+      .remove([fileData.file_path]);
 
-  if (!fileData) {
-    console.error("No file data found");
-    throw new Error("File not found");
-  }
+    if (storageError) {
+      console.error("Error deleting from storage:", storageError);
+      
+      // Handle JWT expired errors specifically
+      if (
+        (storageError as any).statusCode === '403' && 
+        storageError.message === 'jwt expired' && 
+        retryCount < 2
+      ) {
+        console.log(`JWT expired during storage deletion, attempt ${retryCount + 1}/3`);
+        return {
+          success: false,
+          error: "Authentication token expired. Will retry with new token.",
+          shouldRetryWithNewToken: true
+        };
+      }
+      
+      // If it's not an auth error, just return the error
+      return { success: false, error: storageError };
+    }
 
-  console.log("Retrieved file data for deletion:", fileData);
+    // Now delete from database
+    const { error: dbError } = await supabaseClient
+      .from("notebook_files")
+      .delete()
+      .eq("id", fileId);
 
-  // Delete from storage first
-  const { error: storageError } = await supabaseClient.storage
-    .from("Vox")
-    .remove([fileData.file_path]);
+    if (dbError) {
+      console.error("Error deleting from database:", dbError);
+      
+      // Handle JWT expired errors for database operations
+      if ((dbError.code === 'PGRST301' || dbError.message?.includes('JWT')) && retryCount < 2) {
+        console.log(`JWT expired during database deletion, attempt ${retryCount + 1}/3`);
+        return {
+          success: false,
+          error: "Authentication token expired. Will retry with new token.",
+          shouldRetryWithNewToken: true
+        };
+      }
+      
+      return { success: false, error: dbError };
+    }
 
-  if (storageError) {
-    console.error("Error deleting from storage:", storageError);
-    throw storageError;
-  }
-
-  // Now delete from database
-  const { error: dbError } = await supabaseClient
-    .from("notebook_files")
-    .delete()
-    .eq("id", fileId);
-
-  if (dbError) {
-    console.error("Error deleting from database:", dbError);
-    throw dbError;
+    return { success: true };
+  } catch (error) {
+    console.error("Error in deleteFile:", error);
+    
+    // Check for authentication-related errors
+    const errorStr = String(error);
+    if ((errorStr.includes('401') || errorStr.includes('403') || 
+         errorStr.includes('jwt') || errorStr.includes('unauthorized')) && 
+        retryCount < 2) {
+      return {
+        success: false,
+        error: "Authentication error. Will retry with new token.",
+        shouldRetryWithNewToken: true
+      };
+    }
+    
+    return { success: false, error };
   }
 }
 

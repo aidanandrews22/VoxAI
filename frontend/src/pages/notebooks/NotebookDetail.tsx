@@ -28,8 +28,7 @@ import toast from "react-hot-toast";
 import ResizablePanel from "../../components/note/ResizablePanel";
 import NotesPanel from "../../components/note/NotesPanel";
 import "../../components/note/notes.css";
-import Sandbox from "../../components/Sandbox";
-import { useSupabase } from "../../hooks/useSupabase";
+import Sandbox, { SandboxState } from "../../components/Sandbox";
 
 // Extended NotebookFile type to include processing status
 interface ExtendedNotebookFile extends NotebookFile {
@@ -73,12 +72,10 @@ export default function NotebookDetailPage() {
   const [isNotesPanelExpanded, setIsNotesPanelExpanded] = useState(false);
   // Sandbox panel state
   const [isSandboxExpanded, setIsSandboxExpanded] = useState(false);
+  const [sandboxState, setSandboxState] = useState<SandboxState | null>(null);
 
   error;
   editedChatTitle;
-
-  // Add our new Supabase hook
-  const { executeWithAuth, getClient, refreshToken } = useSupabase();
 
   // Fetch notebook data
   useEffect(() => {
@@ -116,27 +113,26 @@ export default function NotebookDetailPage() {
       }
 
       try {
-        // Use executeWithAuth to handle token refresh automatically
-        const filesData = await executeWithAuth(async (client) => {
-          // Ensure notebookId is defined
-          if (!notebookId) {
-            throw new Error("Notebook ID is undefined");
+        // Make sure notebookId is not undefined
+        if (notebookId) {
+          // Get authenticated Supabase client
+          const authClient = await getSupabaseClient();
+
+          // If we couldn't get an authenticated client, show an error
+          if (!authClient) {
+            console.error("Authentication error when fetching files");
+            return;
           }
-          
-          const result = await getNotebookFiles(notebookId, 
-            () => Promise.resolve(client), 
-            refreshToken);
-            
-          if (!result.success || !result.data) {
-            throw new Error("Failed to load files");
+
+          const result = await getNotebookFiles(notebookId, authClient);
+          if (result.success && result.data) {
+            setFiles(result.data);
+          } else {
+            console.error("Failed to load files");
           }
-          return result.data;
-        });
-        
-        setFiles(filesData);
+        }
       } catch (err) {
         console.error("Error fetching files:", err);
-        toast?.error("Failed to load files. Please try again.");
       } finally {
         // Only toggle loading state off if we set it on
         if (isInitialLoad) {
@@ -146,7 +142,7 @@ export default function NotebookDetailPage() {
     }
 
     fetchFiles();
-  }, [notebookId, executeWithAuth, refreshToken, toast]);
+  }, [notebookId, getSupabaseClient]);
 
   // Fetch chat sessions
   useEffect(() => {
@@ -265,28 +261,53 @@ export default function NotebookDetailPage() {
     // Switch to files tab to show upload progress
     setActiveTab("files");
 
-    // Replace the uploadWithRetry function with this
-    const uploadWithRetry = async (): Promise<any> => {
+    // Function to handle file upload with retry logic
+    const uploadWithRetry = async (retryCount = 0): Promise<any> => {
       try {
-        // Use our executeWithAuth helper that handles retries and token refresh
-        return await executeWithAuth(async (client) => {
-          const result = await uploadFile(
-            file,
-            false,
-            notebookId,
-            supabaseUserId,
-            () => Promise.resolve(client),
-            refreshToken
-          );
-          
-          if (!result.success) {
-            throw new Error(result.error || "Upload failed");
-          }
-          
-          return result;
-        }, 3); // Allow up to 3 retries for file uploads
+        // Get authenticated Supabase client - force refresh if retry
+        const authClient = await (retryCount > 0 
+          ? refreshSupabaseToken().then(() => getSupabaseClient()) 
+          : getSupabaseClient());
+
+        if (!authClient) {
+          console.error("Failed to get authenticated Supabase client");
+          throw new Error("Authentication error. Please try again or refresh the page.");
+        }
+
+        // Upload to Supabase
+        const result = await uploadFile(
+          file,
+          false,
+          notebookId,
+          supabaseUserId,
+          authClient,
+          retryCount
+        );
+
+        // If token expired and we should retry with a new token
+        if (!result.success && result.shouldRetryWithNewToken && retryCount < 2) {
+          console.log(`Retrying upload with refreshed token, attempt ${retryCount + 1}/3`);
+          // Force refresh the token and retry
+          await refreshSupabaseToken();
+          return uploadWithRetry(retryCount + 1);
+        }
+
+        return result;
       } catch (err) {
-        console.error("Error uploading file:", err);
+        console.error(`Error uploading file (attempt ${retryCount + 1}/3):`, err);
+        
+        // If we haven't retried too many times and this looks like an auth error, retry
+        const errorMsg = String(err).toLowerCase();
+        if (retryCount < 2 && 
+            (errorMsg.includes('jwt') || 
+             errorMsg.includes('unauthorized') || 
+             errorMsg.includes('403') || 
+             errorMsg.includes('401'))) {
+          console.log("Auth error detected, refreshing token and retrying...");
+          await refreshSupabaseToken();
+          return uploadWithRetry(retryCount + 1);
+        }
+        
         throw err;
       }
     };
@@ -408,25 +429,48 @@ export default function NotebookDetailPage() {
         return updatedFiles;
       });
 
-      // Replace the deleteWithRetry function with this
-      const deleteWithRetry = async (): Promise<any> => {
+      // Function to handle file deletion with retry logic
+      const deleteWithRetry = async (retryCount = 0): Promise<any> => {
         try {
-          // Use our executeWithAuth helper that handles retries and token refresh
-          return await executeWithAuth(async (client) => {
-            const result = await deleteFile(
-              fileId,
-              () => Promise.resolve(client),
-              refreshToken
-            );
-            
-            if (!result.success) {
-              throw new Error(result.error || "Delete failed");
-            }
-            
-            return result;
-          }, 2); // Allow up to 2 retries for file deletion
+          // Get authenticated Supabase client - force refresh if retry
+          const authClient = await (retryCount > 0 
+            ? refreshSupabaseToken().then(() => getSupabaseClient()) 
+            : getSupabaseClient());
+
+          // If we couldn't get an authenticated client, show an error
+          if (!authClient) {
+            console.error("Authentication failed when trying to delete file");
+            throw new Error("Authentication error. Please try again or refresh the page.");
+          }
+
+          console.log("Calling deleteFile service function");
+          const result = await deleteFile(fileId, authClient, retryCount);
+          console.log("deleteFile result:", result);
+
+          // If token expired and we should retry with a new token
+          if (!result.success && result.shouldRetryWithNewToken && retryCount < 2) {
+            console.log(`Retrying deletion with refreshed token, attempt ${retryCount + 1}/3`);
+            // Force refresh the token and retry
+            await refreshSupabaseToken();
+            return deleteWithRetry(retryCount + 1);
+          }
+
+          return result;
         } catch (err) {
-          console.error("Error deleting file:", err);
+          console.error(`Error deleting file (attempt ${retryCount + 1}/3):`, err);
+          
+          // If we haven't retried too many times and this looks like an auth error, retry
+          const errorMsg = String(err).toLowerCase();
+          if (retryCount < 2 && 
+              (errorMsg.includes('jwt') || 
+               errorMsg.includes('unauthorized') || 
+               errorMsg.includes('403') || 
+               errorMsg.includes('401'))) {
+            console.log("Auth error detected, refreshing token and retrying...");
+            await refreshSupabaseToken();
+            return deleteWithRetry(retryCount + 1);
+          }
+          
           throw err;
         }
       };
@@ -586,6 +630,26 @@ export default function NotebookDetailPage() {
       ];
 
       console.log("Sending single user message:", messageText);
+
+      // If sandbox is expanded, include the code and console output in the query
+      let queryText = messageText;
+      if (isSandboxExpanded && sandboxState) {
+        // Format the sandbox information in a clear, structured way
+        queryText = `${messageText}\n\n--- SANDBOX INFORMATION ---\n`;
+        
+        // Add code with language
+        queryText += `Code (${sandboxState.language}):\n\`\`\`${sandboxState.language}\n${sandboxState.code}\n\`\`\`\n\n`;
+        
+        // Add console output if available
+        if (sandboxState.consoleOutput && sandboxState.consoleOutput.trim()) {
+          queryText += `Console Output:\n\`\`\`\n${sandboxState.consoleOutput}\n\`\`\`\n\n`;
+        }
+        
+        // Update the user message with the enhanced content
+        userOnlyMessage[0].content = queryText;
+        
+        console.log("Including sandbox code and output in query");
+      }
 
       // Stream the response
       try {
@@ -873,7 +937,7 @@ export default function NotebookDetailPage() {
                   onToggleExpand={toggleNotesPanel}
                 />
               ) : isSandboxExpanded ? (
-                <Sandbox />
+                <Sandbox onSandboxStateChange={setSandboxState} />
               ) : null
             }
             isRightPanelExpanded={isNotesPanelExpanded || isSandboxExpanded}

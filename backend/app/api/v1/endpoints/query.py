@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from app.core.logging import logger
 from app.schemas.file import QueryRequest, QueryResponse, QueryResult
 from app.services.rag_service import rag_service
+from app.services.llm_service import llm_service
 from app.db.pinecone import pinecone_client
 from app.db.supabase import supabase_client
 
@@ -40,9 +41,12 @@ async def query(
     try:
         logger.info(f"DEBUG - Original query: {request.query}")
         # Handle streaming separately
-        if request.stream:
-            return await _stream_query(request)
-        
+        if request.is_coding_question:
+            return await _stream_query_coding(request)
+        else:
+            if request.stream:
+                return await _stream_query(request)
+            
         # Default filter if none provided
         filter_dict = request.filter or {}
         
@@ -299,6 +303,99 @@ async def _stream_query(request: QueryRequest) -> StreamingResponse:
             yield f"data: {done_json}\n\n"
         except Exception as e:
             logger.error(f"Error in streaming query: {e}")
+            error_json = json.dumps({"type": "error", "error": str(e)})
+            yield f"data: {error_json}\n\n"
+    
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream"
+    ) 
+
+async def _stream_query_coding(request: QueryRequest) -> StreamingResponse:
+    """
+    Streams a response for coding questions, bypassing RAG and going directly to the LLM.
+    
+    Args:
+        request: The query request.
+        
+    Returns:
+        StreamingResponse: The streaming response.
+    """
+    async def generate():
+        start_time = time.time()
+        
+        try:
+            # Get the query
+            query = request.query
+            logger.info(f"DEBUG - Original coding query: '{query}'")
+            
+            # Check if query already contains streaming data (from a previous error perhaps)
+            if query.strip().startswith('data:'):
+                try:
+                    # Try to extract a clean query from the streaming data
+                    import re
+                    
+                    # First, try to find a JSON object
+                    json_matches = re.findall(r'data: ({.*?})\n\n', query)
+                    if json_matches:
+                        for match in json_matches:
+                            try:
+                                data = json.loads(match)
+                                if 'query' in data:
+                                    query = data['query']
+                                    logger.info(f"DEBUG - Extracted coding query: '{query}'")
+                                    break
+                            except json.JSONDecodeError:
+                                pass
+                    
+                    # If we still have streaming data, use a simple fallback
+                    if query.strip().startswith('data:'):
+                        query = "Please provide coding assistance"
+                        logger.warning(f"DEBUG - Couldn't extract coding query, using fallback: '{query}'")
+                except Exception as extraction_error:
+                    logger.error(f"Error extracting coding query: {extraction_error}")
+                    query = "Please provide coding assistance"  # Fallback
+            
+            # For coding questions, we don't use RAG, so we send empty sources
+            sources = []
+            sources_json = json.dumps({"type": "sources", "data": sources})
+            yield f"data: {sources_json}\n\n"
+            
+            logger.info(f"DEBUG - Streaming coding answer directly to LLM")
+            
+            # Get the answer stream from the LLM service
+            # The generate_answer_with_coding_question method returns a stream
+            answer_stream = await llm_service.generate_answer_with_coding_question(
+                query=query,
+                model_name=request.model_name
+            )
+            
+            # Process the stream
+            if hasattr(answer_stream, '__aiter__'):
+                # It's an async generator
+                try:
+                    async for chunk in answer_stream:
+                        logger.info(f"DEBUG - Received coding chunk: {chunk}")
+                        chunk_json = json.dumps({"type": "token", "data": chunk})
+                        yield f"data: {chunk_json}\n\n"
+                        await asyncio.sleep(0)  # Allow other tasks to run
+                except Exception as e:
+                    logger.error(f"Error streaming coding chunks: {e}")
+                    error_json = json.dumps({"type": "error", "error": f"Streaming error: {str(e)}"})
+                    yield f"data: {error_json}\n\n"
+            else:
+                # It's a string (non-streaming response)
+                logger.info(f"DEBUG - Received non-streaming coding response")
+                # Send the entire response as a single token
+                chunk_json = json.dumps({"type": "token", "data": answer_stream})
+                yield f"data: {chunk_json}\n\n"
+            
+            # Send query time as the final chunk
+            query_time = (time.time() - start_time) * 1000
+            done_json = json.dumps({"type": "done", "query_time_ms": query_time})
+            yield f"data: {done_json}\n\n"
+        except Exception as e:
+            logger.error(f"Error in streaming coding query: {e}")
             error_json = json.dumps({"type": "error", "error": str(e)})
             yield f"data: {error_json}\n\n"
     

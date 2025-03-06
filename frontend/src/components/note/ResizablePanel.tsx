@@ -179,8 +179,8 @@ export default function ResizablePanel({
           <div 
             className={`w-1 h-full ${
               isDragging 
-                ? 'bg-blue-500 dark:bg-blue-400' 
-                : 'bg-gray-300 dark:bg-gray-600 hover:bg-blue-400 dark:hover:bg-blue-500 transition-colors duration-200'
+                ? 'bg-primary' 
+                : 'bg-card hover:bg-primary transition-colors duration-200'
             }`}
           />
         </div>

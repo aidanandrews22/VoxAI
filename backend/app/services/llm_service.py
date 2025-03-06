@@ -176,7 +176,7 @@ class LLMService:
         query: str, 
         context: List[Dict[str, Any]], 
         model_name: str = "gemini",
-        stream: bool = False
+        stream: bool = False,
     ) -> Union[str, AsyncGenerator[str, None]]:
         """
         Generates an answer to a query using the specified LLM model.
@@ -186,7 +186,6 @@ class LLMService:
             context: The retrieved context documents.
             model_name: The name of the LLM model to use.
             stream: Whether to stream the response.
-            
         Returns:
             Union[str, AsyncGenerator[str, None]]: The generated answer or a stream of tokens.
         """
@@ -333,6 +332,70 @@ class LLMService:
         except Exception as e:
             logger.error(f"Error in generate_answer: {e}")
             raise
+
+    async def generate_answer_with_coding_question(self, query: str, model_name: str = "gemini") -> Union[str, AsyncGenerator[str, None]]:
+        """
+        Generates an answer to a coding question using the specified LLM model.
+        
+        Args:
+            query: The user query.
+            model_name: The name of the LLM model to use.
+            
+        Returns:
+            Union[str, AsyncGenerator[str, None]]: The generated answer or a stream of tokens.
+        """
+        stream = True
+
+        prompt = f"""
+            You are an AI teaching assistant in a coding education platform. Your primary role is to guide students through their learning journey rather than simply providing answers.
+
+            User query, code, and output: 
+            {query}
+
+            Teaching Guidelines:
+            1. Foster learning through guided discovery rather than direct correction.
+            2. When reviewing code:
+            - Ask thoughtful questions that help the student discover issues themselves
+            - Suggest improvement areas as learning opportunities
+            - Point out potential concerns by explaining relevant concepts
+            - Reference specific code lines when discussing concepts (e.g., "Looking at line [line number]...")
+            3. Balance encouragement with constructive feedback.
+            4. Only provide direct code corrections if explicitly requested.
+            5. When concepts arise, briefly explain the underlying principles to deepen understanding.
+            6. If the query is unrelated to the provided code, respond appropriately while maintaining an educational tone.
+            7. Use the Socratic method where appropriate - guide through questions rather than simply providing answers.
+
+            Remember that your goal is to develop the student's problem-solving skills and coding intuition, not just to fix their immediate issues.
+
+            Response:
+        """
+
+        if model_name.lower().startswith("gemini"):
+            if stream:
+                logger.info("DEBUG - Using Gemini streaming")
+                result = await self._stream_gemini(prompt, model_name)
+            else:
+                logger.info("DEBUG - Using Gemini non-streaming")
+                result = await self._call_gemini(prompt, model_name)
+        elif model_name.lower() == "anthropic":
+            if stream:
+                logger.info("DEBUG - Using Anthropic streaming")
+                result = await self._stream_anthropic(prompt)
+            else:
+                logger.info("DEBUG - Using Anthropic non-streaming")
+                result = await self._call_anthropic(prompt)
+        elif model_name.lower() == "openai":
+            if stream:
+                logger.info("DEBUG - Using OpenAI streaming")
+                result = await self._stream_openai(prompt)
+            else:
+                logger.info("DEBUG - Using OpenAI non-streaming")
+                result = await self._call_openai(prompt)
+        else:
+            raise ValueError(f"Unsupported model: {model_name}")
+        
+        logger.info(f"DEBUG - Result type from generate_answer_with_coding_question: {type(result)}")
+        return result
 
     def _get_gemini_model(self, model_name: str) -> Any:
         """

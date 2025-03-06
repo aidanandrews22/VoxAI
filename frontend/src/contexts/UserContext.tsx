@@ -5,7 +5,6 @@ import {
   useState,
   ReactNode,
   useCallback,
-  useRef,
 } from "react";
 import { useUser, useAuth } from "@clerk/clerk-react";
 import {
@@ -41,102 +40,17 @@ export function UserProvider({ children }: UserProviderProps) {
   const [supabaseUserId, setSupabaseUserId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  
-  // Token management
-  const [tokenExpiresAt, setTokenExpiresAt] = useState(0);
-  const refreshTimeoutRef = useRef<number | null>(null);
-  
-  // Promise management for concurrent refresh requests
-  const refreshPromiseRef = useRef<Promise<any> | null>(null);
-  
+  // Store the last token request time to throttle requests
+  const [lastTokenRequestTime, setLastTokenRequestTime] = useState(0);
   // Cache for the Supabase client
   const [cachedClient, setCachedClient] = useState<any>(null);
+  // Token expiration time - setting to a more conservative value
+  const [tokenExpiresAt, setTokenExpiresAt] = useState(0);
+  // Add a flag to track refresh in progress
+  const [refreshInProgress, setRefreshInProgress] = useState(false);
+  // Add a flag to track if the token has been validated
+  const [tokenValidated, setTokenValidated] = useState(false);
 
-  // Schedule token refresh before expiration
-  const scheduleTokenRefresh = useCallback((expiresInMs: number) => {
-    // Clear any existing timeout
-    if (refreshTimeoutRef.current !== null) {
-      window.clearTimeout(refreshTimeoutRef.current);
-    }
-    
-    // Calculate when to refresh - 30 seconds before expiration
-    // This buffer ensures we refresh before the token expires
-    const refreshBuffer = 30 * 1000; // 30 seconds
-    const refreshTime = Math.max(expiresInMs - refreshBuffer, 0);
-    
-    // Schedule refresh
-    refreshTimeoutRef.current = window.setTimeout(() => {
-      refreshSupabaseToken();
-    }, refreshTime);
-    
-  }, []);
-
-  // Force refresh the Supabase token
-  const refreshSupabaseToken = useCallback(async () => {
-    if (!user) return cachedClient;
-    
-    // Return existing promise if a refresh is already in progress
-    if (refreshPromiseRef.current) {
-      return refreshPromiseRef.current;
-    }
-    
-    // Create a new refresh promise
-    refreshPromiseRef.current = (async () => {
-      try {
-        // Get a fresh JWT token from Clerk
-        const token = await getToken({ template: "supabase" });
-
-        if (!token) {
-          console.error("No token returned from Clerk during refresh");
-          return null;
-        }
-
-        // Create a new Supabase client with the token
-        const client = await createSupabaseClientWithToken(token);
-
-        // Update cache and timestamps
-        setCachedClient(client);
-        
-        // Set token expiration to 10 minutes (conservative)
-        const expiresInMs = 10 * 60 * 1000;
-        setTokenExpiresAt(Date.now() + expiresInMs);
-        
-        // Schedule the next refresh
-        scheduleTokenRefresh(expiresInMs);
-
-        console.log("Successfully refreshed Supabase token with expiry in 10 minutes");
-        return client;
-      } catch (err) {
-        console.error("Error refreshing Supabase token:", err);
-        setError(err as Error);
-        return null;
-      } finally {
-        // Clear the promise reference to allow future refreshes
-        refreshPromiseRef.current = null;
-      }
-    })();
-    
-    return refreshPromiseRef.current;
-  }, [user, getToken, cachedClient, scheduleTokenRefresh]);
-
-  // Function to get a Supabase client with the user's token
-  const getSupabaseClient = useCallback(async () => {
-    if (!user) return null;
-
-    const now = Date.now();
-    // More aggressive token refresh policy:
-    // If token is expired or will expire in the next 2 minutes
-    const tokenExpiringSoon = now > tokenExpiresAt - 2 * 60 * 1000;
-    
-    if (!cachedClient || tokenExpiringSoon || now >= tokenExpiresAt) {
-      return refreshSupabaseToken();
-    }
-
-    // Use cached client if it's still valid
-    return cachedClient;
-  }, [user, cachedClient, tokenExpiresAt, refreshSupabaseToken]);
-
-  // Initialize user session
   useEffect(() => {
     const syncUser = async () => {
       if (!isClerkLoaded || !user) {
@@ -167,39 +81,65 @@ export function UserProvider({ children }: UserProviderProps) {
     };
 
     syncUser();
-    
-    // Cleanup function to clear any scheduled refreshes
-    return () => {
-      if (refreshTimeoutRef.current !== null) {
-        window.clearTimeout(refreshTimeoutRef.current);
-      }
-    };
-  }, [user, isClerkLoaded, refreshSupabaseToken]);
+  }, [user, isClerkLoaded]);
 
-  // Listen for auth errors globally
-  useEffect(() => {
-    const handleError = (event: ErrorEvent) => {
-      // Check if the error is related to authentication
-      const errorText = (event.error?.message || event.message || '').toLowerCase();
-      if (
-        errorText.includes('jwt expired') || 
-        errorText.includes('unauthorized') || 
-        errorText.includes('auth') || 
-        errorText.includes('401') || 
-        errorText.includes('403')
-      ) {
-        // Immediately refresh the token if it seems like an auth error
-        refreshSupabaseToken();
-      }
-    };
+  // Force refresh the Supabase token
+  const refreshSupabaseToken = useCallback(async () => {
+    if (!user || refreshInProgress) return cachedClient;
 
-    // Listen for global errors
-    window.addEventListener('error', handleError);
-    
-    return () => {
-      window.removeEventListener('error', handleError);
-    };
-  }, [refreshSupabaseToken]);
+    try {
+      setRefreshInProgress(true);
+      // Get a fresh JWT token from Clerk
+      const token = await getToken({ template: "supabase" });
+
+      if (!token) {
+        console.error("No token returned from Clerk during refresh");
+        return null;
+      }
+
+      // Create a new Supabase client with the token
+      const client = await createSupabaseClientWithToken(token);
+
+      // Update cache and timestamps
+      setCachedClient(client);
+      setLastTokenRequestTime(Date.now());
+      // Set token expiration (setting to 10 minutes - more conservative than the default)
+      setTokenExpiresAt(Date.now() + 10 * 60 * 1000);
+      setTokenValidated(true);
+
+      console.log("Successfully refreshed Supabase token with expiry in 10 minutes");
+      return client;
+    } catch (err) {
+      console.error("Error refreshing Supabase token:", err);
+      setError(err as Error);
+      return null;
+    } finally {
+      setRefreshInProgress(false);
+    }
+  }, [user, getToken, refreshInProgress, cachedClient]);
+
+  // Function to get a Supabase client with the user's token
+  const getSupabaseClient = useCallback(async () => {
+    if (!user) return null;
+
+    const now = Date.now();
+
+    // More aggressive token refresh policy:
+    // 1. If token is expired or will expire in the next 2 minutes
+    // 2. Or if we don't have a cached client
+    // 3. Or if token hasn't been validated yet
+    const tokenExpiringSoon = now > tokenExpiresAt - 2 * 60 * 1000;
+    const tokenExpired = now > tokenExpiresAt;
+    const needsRefresh = !cachedClient || tokenExpired || tokenExpiringSoon || !tokenValidated;
+
+    if (needsRefresh) {
+      console.log("Token expired or expiring soon, refreshing...");
+      return refreshSupabaseToken();
+    }
+
+    // Use cached client if it's still valid
+    return cachedClient;
+  }, [user, cachedClient, tokenExpiresAt, refreshSupabaseToken, tokenValidated]);
 
   // Add an error handler effect that will refresh the token on 401/403 errors
   useEffect(() => {

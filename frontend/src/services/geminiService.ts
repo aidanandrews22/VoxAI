@@ -55,6 +55,7 @@ export async function streamChatWithGemini(
       use_rag: true,
       stream: true,
       user_id: userId,
+      is_coding_question: true,
     };
 
     console.log("Sending query request:", queryRequest);

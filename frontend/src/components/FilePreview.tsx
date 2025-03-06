@@ -420,23 +420,23 @@ const FilePreview: React.FC<FilePreviewProps> = ({ isOpen, onClose, file }) => {
 
   return (
     <div 
-      className="fixed inset-0 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50"
       onClick={onClose}
     >
       <div 
-        className="bg-background/25 border-4 border-adaptive rounded-lg w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl transition-all duration-300 ease-out"
+        className="bg-white dark:bg-gray-800 rounded-lg w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-xl transition-all duration-300 ease-out"
         onClick={e => e.stopPropagation()}
       >
-        <div className="p-4 border-b-2 border-adaptive flex justify-between items-center">
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
           <div className="flex items-center">
             <div className="mr-3">
               <FileIcon type={file.file_type} />
             </div>
-            <h3 className="text-lg text-adaptive font-medium truncate">{file.file_name}</h3>
+            <h3 className="text-lg font-medium truncate">{file.file_name}</h3>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full hover:bg-hover transition-colors cursor-pointer"
+            className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
             aria-label="Close preview"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -444,7 +444,7 @@ const FilePreview: React.FC<FilePreviewProps> = ({ isOpen, onClose, file }) => {
             </svg>
           </button>
         </div>
-        <div className="flex-grow overflow-auto p-4">
+        <div className="flex-grow overflow-auto">
           {previewContent}
         </div>
       </div>
